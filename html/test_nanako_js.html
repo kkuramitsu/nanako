@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nanako JavaScript Test</title>
+</head>
+<body>
+    <h1>Nanako JavaScript Implementation Test</h1>
+    <div id="output"></div>
+
+    <script src="nanako.js"></script>
+    <script>
+        function log(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+
+        function test(name, testFunc) {
+            try {
+                testFunc();
+                log('✅ ' + name + ' - PASSED');
+            } catch (error) {
+                log('❌ ' + name + ' - FAILED: ' + error.message);
+            }
+        }
+
+        // Test basic functionality
+        test('Basic variable assignment', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`x = 10`);
+            if (env.x !== 10) {
+                throw new Error('x should be 10, got ' + env.x);
+            }
+        });
+
+        test('Increment operation', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`
+                x = 10
+                xを増やす
+            `);
+            if (env.x !== 11) {
+                throw new Error('x should be 11, got ' + env.x);
+            }
+        });
+
+        test('Decrement operation', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`
+                y = 5
+                yを減らす
+            `);
+            if (env.y !== 4) {
+                throw new Error('y should be 4, got ' + env.y);
+            }
+        });
+
+        test('Number literal', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`z = 42`);
+            if (env.z !== 42) {
+                throw new Error('z should be 42, got ' + env.z);
+            }
+        });
+
+        test('Array creation', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`arr = [1, 2, 3]`);
+            if (!Array.isArray(env.arr) || env.arr.length !== 3 || env.arr[0] !== 1) {
+                throw new Error('arr should be [1, 2, 3], got ' + JSON.stringify(env.arr));
+            }
+        });
+
+        test('String literal', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`str = "hello"`);
+            if (!Array.isArray(env.str)) {
+                throw new Error('str should be an array, got ' + typeof env.str);
+            }
+            const expected = "hello".split('').map(c => c.charCodeAt(0));
+            if (JSON.stringify(env.str) !== JSON.stringify(expected)) {
+                throw new Error('str should be character codes of "hello", got ' + JSON.stringify(env.str));
+            }
+        });
+
+        test('If statement (true case)', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`
+                x = 5
+                もし x が 0 より大きい ならば {
+                    result = 1
+                }
+            `);
+            if (env.result !== 1) {
+                throw new Error('result should be 1, got ' + env.result);
+            }
+        });
+
+        test('If statement (false case)', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`
+                x = -5
+                result = 0
+                もし x が 0 より大きい ならば {
+                    result = 1
+                }
+            `);
+            if (env.result !== 0) {
+                throw new Error('result should remain 0, got ' + env.result);
+            }
+        });
+
+        test('Loop statement', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`
+                counter = 0
+                3回、くり返す {
+                    counterを増やす
+                }
+            `);
+            if (env.counter !== 3) {
+                throw new Error('counter should be 3, got ' + env.counter);
+            }
+        });
+
+        test('Absolute value', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`
+                x = -5
+                result = |x|
+            `);
+            if (env.result !== 5) {
+                throw new Error('result should be 5, got ' + env.result);
+            }
+        });
+
+        test('Array length', () => {
+            const runtime = new NanakoRuntime();
+            const env = runtime.exec(`
+                arr = [1, 2, 3, 4]
+                length = |arr|
+            `);
+            if (env.length !== 4) {
+                throw new Error('length should be 4, got ' + env.length);
+            }
+        });
+
+        log('Running tests...');
+    </script>
+</body>
+</html>

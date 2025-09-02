@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nanako Code Editor</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .header {
+            background: #2d2d30;
+            padding: 10px 20px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            color: #cccccc;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .run-btn {
+            background: #0e639c;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .run-btn:hover {
+            background: #1177bb;
+        }
+        
+        .run-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .clear-btn {
+            background: #666;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .clear-btn:hover {
+            background: #777;
+        }
+        
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .editor-container {
+            flex: 1;
+            position: relative;
+            border-right: 1px solid #3e3e42;
+            min-height: 400px;
+        }
+        
+        #editor {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .output-container {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            background: #252526;
+        }
+        
+        .output-header {
+            background: #2d2d30;
+            padding: 8px 16px;
+            border-bottom: 1px solid #3e3e42;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .output {
+            flex: 1;
+            padding: 16px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .error {
+            color: #f48771;
+        }
+        
+        .success {
+            color: #4fc1ff;
+        }
+        
+        .variable-output {
+            color: #9cdcfe;
+        }
+        
+        .execution-info {
+            color: #608b4e;
+            font-size: 11px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #3e3e42;
+        }
+        
+        .examples {
+            margin-left: 20px;
+        }
+        
+        .examples select {
+            background: #3c3c3c;
+            color: #cccccc;
+            border: 1px solid #3e3e42;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .resize-handle {
+            width: 4px;
+            background: #3e3e42;
+            cursor: ew-resize;
+            user-select: none;
+        }
+        
+        .resize-handle:hover {
+            background: #007acc;
+        }
+        
+        .running {
+            color: #4fc1ff;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #3c3c3c;
+            border-radius: 50%;
+            border-top-color: #4fc1ff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .run-btn.executing {
+            background: #666;
+            color: #ccc;
+            cursor: wait;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Nanako (ななこ) Code Editor</h1>
+        <div class="controls">
+            <div class="examples">
+                <label for="examples">例: </label>
+                <select id="examples">
+                    <option value="">選択してください</option>
+                    <option value="basic">基本操作</option>
+                    <option value="conditional">条件分岐</option>
+                    <option value="loop">ループ</option>
+                    <option value="array">配列</option>
+                    <option value="function">関数</option>
+                    <option value="string">文字列</option>
+                    <option value="error_test">エラーテスト</option>
+                </select>
+            </div>
+            <button id="runBtn" class="run-btn">実行 (Ctrl+Enter)</button>
+            <button id="clearBtn" class="clear-btn">クリア</button>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div class="editor-container">
+            <div id="editor"></div>
+        </div>
+        <div class="resize-handle" id="resizeHandle"></div>
+        <div class="output-container" id="outputContainer">
+            <div class="output-header">実行結果</div>
+            <div id="output" class="output">コードを実行すると結果がここに表示されます。</div>
+        </div>
+    </div>
+
+    <script src="nanako.js"></script>
+    <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
+    <script>
+        // Nanako runtime の読み込み確認
+        console.log('NanakoRuntime available:', typeof NanakoRuntime !== 'undefined');
+    </script>
+    <script>
+        let editor;
+        let isResizing = false;
+        
+        // Monaco Editor の初期化
+        require.config({ 
+            paths: { 
+                'vs': 'https://unpkg.com/monaco-editor@0.44.0/min/vs' 
+            }
+        });
+        
+        window.MonacoEnvironment = {
+            getWorkerUrl: function (moduleId, label) {
+                if (label === 'json') {
+                    return 'https://unpkg.com/monaco-editor@0.44.0/min/vs/language/json/json.worker.js';
+                }
+                if (label === 'css') {
+                    return 'https://unpkg.com/monaco-editor@0.44.0/min/vs/language/css/css.worker.js';
+                }
+                if (label === 'html') {
+                    return 'https://unpkg.com/monaco-editor@0.44.0/min/vs/language/html/html.worker.js';
+                }
+                if (label === 'typescript' || label === 'javascript') {
+                    return 'https://unpkg.com/monaco-editor@0.44.0/min/vs/language/typescript/ts.worker.js';
+                }
+                return 'https://unpkg.com/monaco-editor@0.44.0/min/vs/editor/editor.worker.js';
+            }
+        };
+        
+        require(['vs/editor/editor.main'], function () {
+            try {
+                // Nanako言語の定義
+                monaco.languages.register({ id: 'nanako' });
+                
+                // Nanako用のシンタックスハイライト
+                monaco.languages.setMonarchTokensProvider('nanako', {
+                    tokenizer: {
+                        root: [
+                            [/＃.*$/, 'comment'],
+                            [/#.*$/, 'comment'],
+                            [/もし|ならば|そうでなければ/, 'keyword'],
+                            [/くり返す|回/, 'keyword'],
+                            [/を|が|に対して?|とする|が答え/, 'keyword'],
+                            [/増やす|減らす/, 'keyword'],
+                            [/以上|以下|より大きい|より小さい|以外|未満/, 'keyword'],
+                            [/λ|入力/, 'keyword'],
+                            [/null|？|\?/, 'constant'],
+                            [/"([^"\\\\]|\\\\.)*"/, 'string'],
+                            [/\d+/, 'number'],
+                            [/[a-zA-Zあ-んア-ン一-龥_][a-zA-Zあ-んア-ン一-龥0-9_]*/, 'identifier'],
+                            [/[{}()[\]]/, 'bracket'],
+                            [/[=,、]/, 'operator'],
+                            [/\|/, 'operator']
+                        ]
+                    }
+                });
+                
+                // テーマの定義
+                monaco.editor.defineTheme('nanako-dark', {
+                    base: 'vs-dark',
+                    inherit: true,
+                    rules: [
+                        { token: 'comment', foreground: '608b4e', fontStyle: 'italic' },
+                        { token: 'keyword', foreground: 'c586c0' },
+                        { token: 'string', foreground: 'ce9178' },
+                        { token: 'number', foreground: 'b5cea8' },
+                        { token: 'identifier', foreground: '9cdcfe' },
+                        { token: 'operator', foreground: 'd4d4d4' },
+                        { token: 'bracket', foreground: 'ffd700' }
+                    ],
+                    colors: {
+                        'editor.background': '#1e1e1e',
+                        'editor.foreground': '#d4d4d4'
+                    }
+                });
+                
+                editor = monaco.editor.create(document.getElementById('editor'), {
+                    value: `# Nanako (ななこ) へようこそ！
+# 基本的な操作例
+
+x = 10
+y = 5
+
+# 値を増やす・減らす
+xを増やす
+yを減らす
+
+# 結果: x = 11, y = 4`,
+                    language: 'nanako',
+                    theme: 'nanako-dark',
+                    fontSize: 14,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true
+                });
+                
+                // キーボードショートカット
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function() {
+                    runCode();
+                });
+                
+                console.log('Monaco Editor initialized successfully');
+            } catch (error) {
+                console.error('Monaco Editor initialization failed:', error);
+                initFallbackEditor();
+            }
+        }, function(error) {
+            console.error('Failed to load Monaco Editor:', error);
+            initFallbackEditor();
+        });
+        
+        // フォールバック用のシンプルなテキストエリア
+        function initFallbackEditor() {
+            const editorContainer = document.getElementById('editor');
+            editorContainer.innerHTML = `
+                <textarea id="fallback-editor" style="
+                    width: 100%;
+                    height: 100%;
+                    background: #1e1e1e;
+                    color: #d4d4d4;
+                    border: none;
+                    font-family: 'Consolas', 'Monaco', monospace;
+                    font-size: 14px;
+                    padding: 16px;
+                    resize: none;
+                    outline: none;
+                    box-sizing: border-box;
+                "># Nanako (ななこ) へようこそ！
+# 基本的な操作例
+
+x = 10
+y = 5
+
+# 値を増やす・減らす
+xを増やす
+yを減らす
+
+# 結果: x = 11, y = 4</textarea>
+            `;
+            
+            const textarea = document.getElementById('fallback-editor');
+            textarea.addEventListener('keydown', function(e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    runCode();
+                }
+            });
+            
+            // editor オブジェクトのモック
+            editor = {
+                getValue: function() {
+                    return textarea.value;
+                },
+                setValue: function(value) {
+                    textarea.value = value;
+                },
+                layout: function() {
+                    // no-op
+                }
+            };
+            
+            console.log('Fallback editor initialized');
+        }
+        
+        // サンプルコード
+        const examples = {
+            basic: `# 基本的な操作
+x = 10
+y = 5
+
+xを増やす
+yを減らす
+
+# 結果を確認
+result = x`,
+            
+            conditional: `# 条件分岐
+x = 15
+
+もし x が 0 より大きい ならば {
+    positive = 1
+} そうでなければ {
+    positive = 0
+}
+
+もし x が 10 以上 ならば {
+    big = 1
+}`,
+            
+            loop: `# ループ処理
+counter = 0
+
+5回、くり返す {
+    counterを増やす
+}
+
+# 配列を使ったループ
+arr = [1, 2, 3]
+sum = 0
+
+|arr|回、くり返す {
+    sumを増やす
+}`,
+            
+            array: `# 配列操作
+numbers = [1, 2, 3, 4, 5]
+
+# 配列の長さ
+length = |numbers|
+
+# 要素にアクセス
+first = numbers[0]
+second = numbers[1]
+
+# 新しい配列
+fruits = ["apple", "banana"]`,
+            
+            function: `# 関数定義と呼び出し
+# 関数定義
+increment = 入力 n に対して {
+    temp = n
+    tempを増やす
+    temp が答え
+}
+
+# 関数呼び出し（実装中）
+value = increment(5)`,
+            
+            string: `# 文字列操作
+greeting = "こんにちは"
+name = "世界"
+
+# 文字列の長さ
+greeting_length = |greeting|
+name_length = |name|
+
+# 文字列は文字コードの配列として扱われます
+first_char_code = greeting[0]`,
+            
+            error_test: `# エラーテスト用のコード
+# 以下のコードにはいくつかエラーがあります
+
+# 1. 未定義変数の参照
+result = undefined_variable
+
+# 2. 構文エラー
+x = 
+y = 10
+
+# 3. 型エラー
+text = "hello"
+textを増やす`
+        };
+        
+        // DOMが読み込まれた後にイベントリスナーを登録
+        document.addEventListener('DOMContentLoaded', function() {
+            // 例選択の処理
+            const exampleSelect = document.getElementById('examples');
+            if (exampleSelect) {
+                exampleSelect.addEventListener('change', function(e) {
+                    const selected = e.target.value;
+                    if (selected && examples[selected] && editor) {
+                        editor.setValue(examples[selected]);
+                    }
+                });
+            }
+            
+            // 実行ボタン
+            const runBtn = document.getElementById('runBtn');
+            if (runBtn) {
+                runBtn.addEventListener('click', runCode);
+            }
+            
+            const clearBtn = document.getElementById('clearBtn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', clearOutput);
+            }
+        });
+        
+        function runCode() {
+            if (!editor) {
+                console.error('Editor not initialized');
+                return;
+            }
+            
+            const code = editor.getValue();
+            const output = document.getElementById('output');
+            const runBtn = document.getElementById('runBtn');
+            
+            if (!code || code.trim() === '') {
+                output.innerHTML = '<div class="error">❌ コードが空です</div>';
+                return;
+            }
+            
+            // 即座に実行状態を表示
+            if (runBtn) {
+                runBtn.disabled = true;
+                runBtn.classList.add('executing');
+                runBtn.innerHTML = '実行中...';
+            }
+            
+            // 出力をクリアして実行中メッセージを表示
+            output.innerHTML = '<div class="running"><span class="spinner"></span>実行中...</div>';
+            
+            // エラーハイライトをクリア
+            clearErrorHighlight();
+            
+            // 非同期で実行（UIをブロックしないため）
+            setTimeout(() => {
+                executeCode(code, output, runBtn);
+            }, 10);
+        }
+        
+        function executeCode(code, output, runBtn) {
+            try {
+                if (typeof NanakoRuntime === 'undefined') {
+                    throw new Error('Nanako runtime not loaded');
+                }
+                
+                const runtime = new NanakoRuntime();
+                const startTime = Date.now();
+                
+                console.log('Executing code:', code);
+                const env = runtime.exec(code, {}, 10); // 10秒のタイムアウト
+                
+                const endTime = Date.now();
+                const executionTime = endTime - startTime;
+                
+                // 実行成功
+                output.innerHTML = '<div class="success">✅ 実行成功</div>\n\n';
+                
+                // 変数の値を表示
+                output.innerHTML += '<div class="variable-output">変数の状態:\n';
+                const sortedVars = Object.keys(env).sort();
+                if (sortedVars.length === 0) {
+                    output.innerHTML += '  (変数が定義されていません)\n';
+                } else {
+                    sortedVars.forEach(key => {
+                        const value = env[key];
+                        let displayValue;
+                        if (Array.isArray(value)) {
+                            if (value.every(v => typeof v === 'number' && v >= 0 && v <= 127)) {
+                                // 文字コード配列の場合、文字列として表示
+                                const str = String.fromCharCode(...value);
+                                displayValue = `"${str}" (文字コード配列: [${value.join(', ')}])`;
+                            } else {
+                                displayValue = JSON.stringify(value);
+                            }
+                        } else if (typeof value === 'object' && value && value.parameters) {
+                            displayValue = `[関数: ${value.parameters.join(', ')}]`;
+                        } else {
+                            displayValue = JSON.stringify(value);
+                        }
+                        output.innerHTML += `  ${key} = ${displayValue}\n`;
+                    });
+                }
+                output.innerHTML += '</div>\n';
+                
+                // 実行統計
+                output.innerHTML += `<div class="execution-info">
+実行統計:
+  増やす回数: ${runtime.incrementCount}
+  減らす回数: ${runtime.decrementCount}
+  比較回数: ${runtime.compareCount}
+  実行時間: ${executionTime}ms
+</div>`;
+                
+            } catch (error) {
+                // エラー処理
+                output.innerHTML = `<div class="error">❌ エラー: ${error.message}</div>\n`;
+                
+                let errorLine = null;
+                let errorCol = null;
+                
+                if (error.details) {
+                    errorLine = error.details.line;
+                    errorCol = error.details.col;
+                    output.innerHTML += `<div class="error">
+位置: 行 ${errorLine}, 列 ${errorCol}
+コード: ${error.details.lineText}
+</div>`;
+                    
+                    // エディターでエラー行をハイライト
+                    highlightErrorInEditor(errorLine, errorCol, error.message);
+                }
+                
+                console.error('Nanako execution error:', error);
+            } finally {
+                // 実行完了時にボタンを元に戻す
+                if (runBtn) {
+                    runBtn.disabled = false;
+                    runBtn.classList.remove('executing');
+                    runBtn.innerHTML = '実行 (Ctrl+Enter)';
+                }
+            }
+        }
+        
+        function clearOutput() {
+            const output = document.getElementById('output');
+            output.innerHTML = 'コードを実行すると結果がここに表示されます。';
+            
+            // エラーハイライトをクリア
+            clearErrorHighlight();
+        }
+        
+        // エディターでエラー箇所をハイライトする関数
+        function highlightErrorInEditor(line, col, message) {
+            if (!editor) return;
+            
+            try {
+                if (editor.getModel) {
+                    // Monaco Editor の場合
+                    const model = editor.getModel();
+                    if (model) {
+                        // エラーマーカーを設定
+                        monaco.editor.setModelMarkers(model, 'nanako-error', [{
+                            startLineNumber: line,
+                            startColumn: Math.max(1, col - 1),
+                            endLineNumber: line,
+                            endColumn: col + 10, // エラー範囲を少し広めに
+                            message: message,
+                            severity: monaco.MarkerSeverity.Error
+                        }]);
+                        
+                        // エラー行にカーソルを移動
+                        editor.setPosition({ lineNumber: line, column: col });
+                        editor.revealLineInCenter(line);
+                    }
+                } else {
+                    // フォールバックエディターの場合
+                    const textarea = document.getElementById('fallback-editor');
+                    if (textarea) {
+                        // 行数を計算してカーソルを移動
+                        const lines = textarea.value.split('\n');
+                        let charPos = 0;
+                        for (let i = 0; i < line - 1 && i < lines.length; i++) {
+                            charPos += lines[i].length + 1; // +1 for newline
+                        }
+                        charPos += Math.max(0, col - 1);
+                        
+                        textarea.focus();
+                        textarea.setSelectionRange(charPos, charPos + 10);
+                    }
+                }
+            } catch (e) {
+                console.error('Error highlighting failed:', e);
+            }
+        }
+        
+        // エラーハイライトをクリア
+        function clearErrorHighlight() {
+            if (!editor) return;
+            
+            try {
+                if (editor.getModel) {
+                    // Monaco Editor のマーカーをクリア
+                    const model = editor.getModel();
+                    if (model) {
+                        monaco.editor.setModelMarkers(model, 'nanako-error', []);
+                    }
+                }
+                // フォールバックエディターの場合は特に何もしない
+            } catch (e) {
+                console.error('Error clearing highlight failed:', e);
+            }
+        }
+        
+        // リサイズ機能
+        const resizeHandle = document.getElementById('resizeHandle');
+        const outputContainer = document.getElementById('outputContainer');
+        
+        resizeHandle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', stopResize);
+            e.preventDefault();
+        });
+        
+        function handleResize(e) {
+            if (!isResizing) return;
+            const containerRect = document.querySelector('.main-content').getBoundingClientRect();
+            const newWidth = containerRect.right - e.clientX;
+            const minWidth = 200;
+            const maxWidth = containerRect.width - 200;
+            
+            if (newWidth >= minWidth && newWidth <= maxWidth) {
+                outputContainer.style.width = newWidth + 'px';
+            }
+        }
+        
+        function stopResize() {
+            isResizing = false;
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+        
+        // ウィンドウリサイズ時のエディターサイズ調整
+        window.addEventListener('resize', function() {
+            if (editor) {
+                editor.layout();
+            }
+        });
+    </script>
+</body>
+</html>
