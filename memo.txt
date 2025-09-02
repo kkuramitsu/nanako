@@ -1,0 +1,162 @@
+ななこ: 生成AI時代の教育用プログラミング言語
+
+目的：
+チューリング完全な言語で万能性を学ぶ。
+限られた機能： 
+　インクリメント、デクリメント、
+　絶対値 |x|　マイナス -X.  (中置記法なし)
+　条件文は, 0との比較のみ
+  N回繰り返すのみ
+  関数定義あり  
+
+文法、実行、
+くり返し、ルール、関数
+チューリング完全、万能性
+文字列、二次元配列
+アルゴリズム、計算量
+
+
+Program = (_ Statement)* .!
+
+Block = "{" (_ Satement)* "}"
+
+Satement = 
+  / Assignment
+  / Increment
+  / Decrement
+  / IfStatement
+  / LoopStatement
+  / Return 
+
+Assignment =
+    Variable ("="/"を") _ Expression ( _ "とする")? EOL
+
+Increment =
+    Variable ("++" / "を増やす") EOL
+
+Decrement = 
+    Variable ("--" / "を減らす") EOL
+
+IfStatement =
+    "もし" CMA Expression "が" CMA "0" ("以上"/"以下"/"より大きい"/"より小さい"/"以外"/"未満"/"") _ "ならば" CMA 
+    Block EOL (_ "そうでなければ" CMA Block EOL)?
+
+LoopStatement =
+    Expression "回" CMA "くり返す" Block EOL
+
+ReturnStatement = 
+    Expression "が答え" EOL
+
+Expression = 
+    / Integer 
+    / Function
+    / FuncCall
+    / ArrayList
+    / NullValue
+    / Variable
+    / Expression
+
+Integer = 
+  "-"? [0-9]+ _
+
+Function =
+    ("λ" / "入力") _ Identifier (_ "," _ Identifier)* _ "に対し" CMA Block
+
+FuncCall = 
+    Identifer _ "(" _ Expression (_ "," _ Expression)* _ ")" _
+
+ArrayList = 
+    "[" (Expression _ ","? _ )* "]" _
+
+NullValue =
+    ("null" / "？"/ "?" ) _
+
+Variable = 
+    Identifier (_ "[" Expression "]")* _
+
+Identifer =
+    [A-Za-z_一-龠あ-んア-ンー] 
+    (!"くり返す" !"を" !"とする" !"が" [A-Za-z_一-龠あ-んア-ンー])* ([0-9])*　_
+
+CMA = "、"? _
+_ = (" " / "　" / "\t")*
+EOL = _ ("\n" / !.)
+
+
+
+たし算 = 入力 X, Y に対し {
+  Y回、くり返す{
+    X を増やす
+  }
+  Xが答え
+}
+
+たし算 = 入力 X, Y に対し {
+  もし Yが0以下ならば、{
+    Y回、くり返す{
+        X を減らす
+    }
+  }
+  そうでなければ {
+    Y回、くり返す{
+        X を増やす
+    }
+  }
+  Xが答え
+}
+
+
+
+ひき算 = 入力 X, Y に対し {
+  Y回、くり返す{
+    X を減らす
+  }
+  Xが答え
+}
+
+絶対値 = 入力 X に対し {
+    もし Xが0より小さいならば {
+        引き算(0, X)が答え
+    }
+    そうでなければ {
+        Xが答え
+    }
+}
+
+大きい方 = 入力 X, Yに対し {
+    もし引き算(X, Y)が0以上ならば {
+        X が答え
+    }
+    そうでなければ {
+        Yが答え
+    }
+}
+
+かけ算 = 入力 X, Yに対し {
+  Z = 0
+  Y回、くり返す {
+　 Z = たし算（Z, X）    
+  }
+  Zが答え   
+}
+
+最大公約数 = 入力 X, Y に対し{
+  ？回、くり返す {
+　 R = 余り（X, Y)
+    もし R が 0 ならば {
+       Yが答え
+     }
+     X = Y
+     Y = R
+  }
+}
+
+BMI = 入力 体重、身長に対し{
+　割り算（かけ算（体重、体重）、身長）が答え
+}
+
+FizzBuzz = 入力 N に対し {
+  N回、くり返す {
+    もしあまり(X,Y)がゼロかつ
+  }
+}

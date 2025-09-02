@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nanako"
+version = "0.1.0"
+authors = [
+    {name = "Nanako Project"},
+]
+description = "An educational programming language for the generative AI era"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Education",
+    "Topic :: Software Development :: Interpreters",
+]
+keywords = ["educational", "programming-language", "japanese", "interpreter"]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+]
+
+[project.scripts]
+nanako = "nanako.run_nanako:main"
+
+[project.urls]
+Homepage = "https://github.com/kimio/nanako"
+Repository = "https://github.com/kimio/nanako"
+
+[tool.setuptools]
+packages = ["nanako"]
+
+[tool.setuptools.package-data]
+nanako = ["../examples/*.nanako", "../data.csv"]
