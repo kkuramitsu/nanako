@@ -45,6 +45,13 @@ class NanakoRuntime(object):
     def pop_call_frame(self):
         self.call_frames.pop()
 
+    def update_variable(self, name: str, env: Dict[str, Any], source: str, pos: int):
+        pass
+
+    def print(self, value, source: str, pos: int):
+        source, line, col, snipet = error_details(source, pos)
+        print(f">>> {snipet.strip()}\n{value}")
+
     def start(self, timeout = 30):
         self.shouldStop = False
         self.timeout = timeout
@@ -74,7 +81,7 @@ class NanakoError(SyntaxError):
         super().__init__(message, details)
 
 
-class ReturnBreakException(Exception):
+class ReturnBreakException(RuntimeError):
     def __init__(self, value=None):
         self.value = value
 
@@ -89,6 +96,9 @@ class ASTNode(ABC):
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]) -> Any:
         pass
     
+    @abstractmethod
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        pass
 
 # Statement classes
 @dataclass
@@ -113,6 +123,11 @@ class Program(Statement):
         for statement in self.statements:
             statement.evaluate(runtime, env)
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        lines = []
+        for statement in self.statements:
+            lines.append(statement.emit(lang, indent_level))
+        return "\n".join(lines)
 
 @dataclass
 class Block(Statement):
@@ -127,6 +142,16 @@ class Block(Statement):
         for statement in self.statements:
             statement.evaluate(runtime, env)
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        lines = []
+        for statement in self.statements:
+            lines.append(statement.emit(lang, indent_level))
+        if lang == "py":
+            indent = '    ' * indent_level
+            lines.append(f"{indent}pass")
+        return "\n".join(lines)
+
+
 @dataclass
 class NullValue(Expression):
     
@@ -136,6 +161,11 @@ class NullValue(Expression):
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return None
+
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        if lang == "py":
+            return "None"
+        return "null"
 
 @dataclass
 class Number(Expression):
@@ -148,6 +178,10 @@ class Number(Expression):
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return self.value
+
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        return str(int(self.value)) if self.value.is_integer() else str(self.value)
+
 
 @dataclass
 class Abs(Expression):
@@ -166,6 +200,11 @@ class Abs(Expression):
             return len(value)
         return 0
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        if lang == "py":
+            return "abs(" + self.element.emit(lang, indent_level) + ")"
+        return "Math.abs(" + self.element.emit(lang, indent_level) + ")"
+
 @dataclass
 class Minus(Expression):
     element: Expression
@@ -181,6 +220,9 @@ class Minus(Expression):
             raise NanakoError("数値ではないよ", error_details(self.source, self.pos))
         return -value
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        return f"-{self.element.emit(lang, indent_level)}"
+
 @dataclass
 class ArrayList(Expression):
     elements: List[Expression]
@@ -193,6 +235,11 @@ class ArrayList(Expression):
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return [element.evaluate(runtime, env) for element in self.elements]
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        elements = []
+        for element in self.elements:
+            elements.append(element.emit(lang, indent_level))
+        return "[" + ", ".join(elements) + "]"
 
 @dataclass
 class StringLiteral(Expression):
@@ -206,12 +253,21 @@ class StringLiteral(Expression):
         # 文字列を文字コードの配列に変換
         return self.string_array
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        chars = []
+        for code in self.string_array:
+            chars.append(chr(code))
+        content = ''.join(chars).replace('\\', '\\\\').replace('\n', '\\n').replace('\t', '\\t').replace('"', '\\"')
+        return '"' + content + '"'
+
 @dataclass
 class Function(Expression):
+    name: str
     parameters: List[str]
     body: Block
 
     def __init__(self, parameters: List[str], body: Block, source="", pos=0):
+        self.name = "<lambda>"
         self.parameters = parameters
         self.body = body
         self.source = source
@@ -219,6 +275,13 @@ class Function(Expression):
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return self
+
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        params = ", ".join(self.parameters)
+        body = self.body.emit(lang, indent_level+1)
+        if lang == "py":
+            return f"def {self.name}({params}):\n{body}"
+        return f"function {self.name}({params}) {{\n{body}\n}}"
 
 @dataclass
 class FuncCall(Expression):
@@ -246,11 +309,18 @@ class FuncCall(Expression):
         try:
             runtime.push_call_frame(self.name, arguments, self.pos)
             function.body.evaluate(runtime, new_env)
+            return None
         except ReturnBreakException as e:
             runtime.pop_call_frame()
             return e.value
         return None
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        arguments = []
+        for argument in self.arguments:
+            arguments.append(argument.emit(lang, indent_level))
+        params = arguments
+        return f"{self.name}({params})"
 
 @dataclass
 class Variable(Expression):
@@ -267,7 +337,7 @@ class Variable(Expression):
         if self.name in env:
             value = env[self.name]
         else:
-            raise NanakoError(f"未定義の変数 '{self.name}' です", error_details(self.source, self.pos))
+            raise NanakoError(f"知らないよ！この変数 '{self.name}'", error_details(self.source, self.pos))
 
         if isinstance(self.indices, list) and len(self.indices) > 0:
             for i, index_expression in enumerate(self.indices):
@@ -294,6 +364,15 @@ class Variable(Expression):
             raise NanakoError(f"この配列の添え字は0から{len(value)-1}の間ですよ", error_details(self.source, self.pos))
         return value[index]
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        if self.indices is None or len(self.indices) == 0:
+            return self.name
+        indices = []
+        for index in self.indices:
+            indices.append(f"[{index.emit(lang, indent_level)}]")
+        indices_str = "".join(indices)
+        return f"{self.name}{indices_str}"
+
 @dataclass
 class Assignment(Statement):
     variable: Variable
@@ -302,6 +381,8 @@ class Assignment(Statement):
     def __init__(self, variable: Variable, expression: Expression, source="", pos=0):
         self.variable = variable
         self.expression = expression
+        if isinstance(expression, Function):
+            expression.name
         self.source = source
         self.pos = pos
 
@@ -317,6 +398,14 @@ class Assignment(Statement):
             env[self.variable.name] = value
         else:
             var_value[index] = value
+
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        variable = self.variable.emit(lang, indent_level)
+        expression = self.expression.emit(lang, indent_level)
+        if variable.endswith('[null]') or variable.endswith('[None]'):
+            return f'{indent}{variable[:-6]}.append({expression})'
+        return f"{indent}{variable} = {expression}"
 
 @dataclass
 class Increment(Statement):
@@ -338,6 +427,11 @@ class Increment(Statement):
                 raise NanakoError(f"数値じゃないから増やせないよ", error_details(self.source, self.pos))
             var_value[index] += 1
         runtime.increment_count += 1
+    
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        variable = self.variable.emit(lang, indent_level)
+        return f"{indent}{variable} += 1"
 
 @dataclass
 class Decrement(Statement):
@@ -359,6 +453,12 @@ class Decrement(Statement):
                 raise NanakoError("数値じゃないから減らせないよ", error_details(self.source, self.pos))
             var_value[index] -= 1
         runtime.decrement_count += 1
+
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        variable = self.variable.emit(lang, indent_level)
+        return f"{indent}{variable} -= 1"
+
 
 @dataclass
 class IfStatement(Statement):
@@ -398,6 +498,45 @@ class IfStatement(Statement):
         elif self.else_block:
             self.else_block.evaluate(runtime, env)
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        condition = self.condition.emit(lang, indent_level)
+        if self.operator == "以上":
+            op = ">="
+        elif self.operator == "以下":
+            op = "<="
+        elif self.operator == "より大きい":
+            op = ">"
+        elif self.operator == "より小さい":
+            op = "<"
+        elif self.operator == "以外":
+            op = "!="
+        elif self.operator == "未満":
+            op = "<"
+        else:
+            op = "=="
+        lines = []
+        if lang == "py":
+            lines.append(f"{indent}if {condition} {op} 0:")
+        else:
+            lines.append(f"{indent}if({condition} {op} 0) {{")
+        lines.append(self.then_block.emit(lang, indent_level + 1))
+        if lang == "py":
+            pass
+        else:
+            lines.append(f"{indent}}}")
+        if self.else_block:
+            if lang == "py":
+                lines.append(f"{indent}else:")
+            else:
+                lines.append(f"{indent}else {{")
+            lines.append(self.else_block.emit(lang, indent_level + 1))
+            if lang == "py":
+                pass
+            else:
+                lines.append(f"{indent}}}")
+        return "\n".join(lines)
+
 @dataclass
 class LoopStatement(Statement):
     count: Expression
@@ -422,6 +561,51 @@ class LoopStatement(Statement):
             runtime.checkExecution(details)
             self.body.evaluate(runtime, env)
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        lines = []
+        if isinstance(self.count, NullValue):
+            if lang == "py":
+                lines.append(f"{indent}while True:")
+            else:
+                lines.append(f"{indent}while(true) {{")
+        else:
+            count = self.count.emit(lang, indent_level)
+            if lang == "py":
+                lines.append(f"{indent}for _ in range(abs({count}))):")
+            else:
+                lines.append(f"{indent}for(var i = 0; i < abs({count}); i++) {{")
+
+
+        lines.append(self.body.emit(lang, indent_level + 1))
+        if lang == "py":
+            lines.append(f"{indent}}}")
+        else:
+            lines.append(f"{indent}}}")
+        return "\n".join(lines)
+
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        lines = []
+        if isinstance(self.count, NullValue):
+            if lang == "py":
+                lines.append(f"{indent}while True:")
+            else:
+                lines.append(f"{indent}while(true) {{")
+        else:
+            count = self.count.emit(lang, indent_level)
+            if lang == "py":
+                return f"{indent}for _ in range({count}):"
+            else:
+                i = f"i{indent_level}"
+                return f"{indent}for(var {i} = 0; {i} < {count}; {i}+=1) {{"
+        lines.append(self.body.emit(lang, indent_level + 1))
+        if lang == "py":
+            pass
+        else:
+            lines.append(f"{indent}}}")
+        return "\n".join(lines)
+
 
 @dataclass
 class ReturnStatement(Statement):
@@ -436,6 +620,27 @@ class ReturnStatement(Statement):
         value = self.expression.evaluate(runtime, env)
         raise ReturnBreakException(value)
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        return f"{indent}return {self.expression.emit(lang, indent_level)}"
+
+@dataclass
+class ExpressionStatement(Statement):
+    expression: Expression
+
+    def __init__(self, expression: Expression, source="", pos=0):
+        self.expression = expression
+        self.source = source
+        self.pos = pos
+
+    def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
+        value = self.expression.evaluate(runtime, env)
+        runtime.print(value, self.source, self.pos)
+        return value
+
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        return f"{indent}{self.expression.emit(lang, indent_level)}"
 
 @dataclass
 class DocTest(Statement):
@@ -454,15 +659,27 @@ class DocTest(Statement):
         if value != answer_value:
             raise NanakoError(f"テストに失敗: {value}", error_details(self.source, self.pos))
 
+    def emit(self, lang="js", indent_level:int = 0) -> str:
+        indent = '    ' * indent_level
+        expression = self.expression.emit(lang, indent_level)
+        answer = self.answer.emit(lang, indent_level)
+        return f"{indent}assert ({expression} == {answer})"
 
 class NanakoParser(object):
     
+
+
     def parse(self, text) -> Program:
-        self.text = text
+        self.text = self.normalize(text)
         self.pos = 0
         self.length = len(text)
         return self.parse_program()
-    
+
+    def normalize(self, text: str) -> str:
+        text = text.replace('“”', '"').replace('”', '"')
+        """全角文字を半角に変換する"""
+        return text.translate(str.maketrans("０-９Ａ-Ｚａ-ｚ", "0-9A-Za-z"))
+
     def error_details(self, pos):
         return error_details(self.text, pos)
 
@@ -482,7 +699,7 @@ class NanakoParser(object):
     
     def parse_statement(self, text = None) -> Optional[Statement]:
         if text is not None:
-            self.text = text
+            self.text = self.normalize(text)
             self.pos = 0
             self.length = len(text)
 
@@ -494,16 +711,16 @@ class NanakoParser(object):
         if not stmt:
             stmt = self.parse_loop_statement()
         if not stmt:
-            stmt = self.parse_return()
-        if not stmt:
             stmt = self.parse_doctest()
         if not stmt:
             stmt = self.parse_assignment()
+        if not stmt:
+            stmt = self.parse_return()
         if stmt:
             stmt.source = self.text
             stmt.pos = saved_pos
             return stmt
-        raise SyntaxError(f"Expected statement", error_details(self.text, saved_pos))
+        raise SyntaxError(f"ななこの知らない書き方だよ", error_details(self.text, saved_pos))
 
     def parse_doctest(self) -> Statement:
         """ドキュテストをパース"""
@@ -515,7 +732,7 @@ class NanakoParser(object):
         self.consume_whitespace()
         expression = self.parse_expression()
         if expression is None:
-            raise SyntaxError(f"`>>>` の後には式が必要です", error_details(self.text, self.pos))
+            raise SyntaxError(f"`>>>` の後にはテストする式が必要です", error_details(self.text, self.pos))
         self.consume_eol()
         answer_expression = self.parse_expression()
         if expression is None:
@@ -545,7 +762,7 @@ class NanakoParser(object):
 
             expression = self.parse_expression()
             if expression is None:
-                raise SyntaxError(f"Expected expression", error_details(self.text, self.pos))
+                raise SyntaxError(f"ここに何か忘れてません？", error_details(self.text, self.pos))
 
             # オプションの "とする"
             self.consume_whitespace()
@@ -554,18 +771,17 @@ class NanakoParser(object):
             return Assignment(variable, expression)
 
         # "="
-        saved_pos = self.pos
         if self.consume_string("="):
             self.consume_whitespace()
             expression = self.parse_expression()
-            
             if expression is None:
-                raise SyntaxError(f"Expected expression", error_details(self.text, self.pos))
+                raise SyntaxError(f"ここに何か忘れてません？", error_details(self.text, self.pos))
 
             self.consume_eol()
             return Assignment(variable, expression)
-
-        raise SyntaxError(f"Expected '=", error_details(self.text, saved_pos))
+                
+        self.pos = saved_pos
+        return None
     
     def parse_if_statement(self) -> IfStatement:
         """if文をパース"""
@@ -578,11 +794,11 @@ class NanakoParser(object):
         
         condition = self.parse_expression()
         if not self.consume_string("が"):
-            raise SyntaxError(f"Expected 'が'", error_details(self.text, self.pos))
+            raise SyntaxError(f"`が`が必要", error_details(self.text, self.pos))
 
         self.consume_cma()
-        if not self.consume_string("0"):
-            raise SyntaxError(f"Expected '0'", error_details(self.text, self.pos))
+        if not self.consume("0", "０"):
+            raise SyntaxError(f"`0`としか比較できないよ", error_details(self.text, self.pos))
         self.consume_whitespace()
         
         # 比較演算子
@@ -594,12 +810,12 @@ class NanakoParser(object):
         
         self.consume_whitespace()
         if not self.consume_string("ならば"):
-            raise SyntaxError(f"Expected 'ならば'", error_details(self.text, self.pos))
+            raise SyntaxError("`ならば`が必要", error_details(self.text, self.pos))
         self.consume_cma()
 
         then_block = self.parse_block()
         if then_block is None:
-            raise SyntaxError(f"Expected block after 'ならば'", error_details(self.text, self.pos))
+            raise SyntaxError("「もし、ならば」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
         self.consume_eol()
         
         # else節（オプション）
@@ -616,7 +832,7 @@ class NanakoParser(object):
         self.consume_cma()
         block = self.parse_block()
         if block is None:
-            raise SyntaxError(f"Expected block after 'そうでなければ'", error_details(self.text, self.pos))
+            raise SyntaxError("「そうでなければ」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
         self.consume_eol()
         return block
 
@@ -631,29 +847,35 @@ class NanakoParser(object):
             self.pos = saved_pos
             return None
         self.consume_cma()
-        if not self.consume_string("くり返す"):
-            raise SyntaxError(f"Expected 'くり返す'", error_details(self.text, self.pos))
+        if not self.consume("くり返す", "繰り返す"):
+            raise SyntaxError(f"`くり返す`が必要", error_details(self.text, self.pos))
 
         body = self.parse_block()
         if body is None:
-            raise SyntaxError(f"Expected loop body", error_details(self.text, self.pos))
+            raise SyntaxError("何をくり返すの？ { }で囲んでね！", error_details(self.text, self.pos))
         self.consume_eol()
         return LoopStatement(count, body)
     
     def parse_return(self) -> ReturnStatement:
         saved_pos = self.pos
         expression = self.parse_expression()
-        if expression and self.consume_string("が答え"):
-            self.consume_eol()
-            return ReturnStatement(expression)
+        if expression:
+            if self.consume_string("が答え"):
+                self.consume_eol()
+                return ReturnStatement(expression)
+            self.consume_whitespace()
+            if self.pos >= self.length or self.text[self.pos] == '\n':
+                self.consume_eol()
+                return ExpressionStatement(expression)
         self.pos = saved_pos
         return None
     
     def parse_expression(self, text=None) -> Expression:
         if text is not None:
-            self.text = text
+            self.text = self.normalize(text)
             self.pos = 0
             self.length = len(text)
+            
         """式をパース"""
         self.consume_whitespace()
         saved_pos = self.pos
@@ -676,8 +898,9 @@ class NanakoParser(object):
             expression = self.parse_variable()
 
         if expression:
-            if self.consume("+", "-", "*", "/", "%"):
-                raise SyntaxError("中置記法は使えないよ", error_details(self.text, self.pos))
+            if self.consume("+", "-", "*", "/", "%", "＋", "ー", "＊", "／", "％", "×", "÷"):
+                raise SyntaxError("ななこは中置記法を使えないよ！", error_details(self.text, self.pos))
+            expression.source = self.text
             expression.pos = saved_pos
             return expression
 
@@ -695,6 +918,9 @@ class NanakoParser(object):
         while self.consume_digit():
             pass
         
+        if self.consume("."):
+            raise SyntaxError("ななこは小数を使えないよ！", error_details(self.text, self.pos))
+
         value_str = self.text[saved_pos:self.pos]
         try:
             value = int(value_str)
@@ -709,7 +935,7 @@ class NanakoParser(object):
         saved_pos = self.pos
         
         # ダブルクォート開始
-        if not self.consume_string('"'):
+        if not self.consume('"', "“", "”"):
             self.pos = saved_pos
             return None
             
@@ -734,11 +960,11 @@ class NanakoParser(object):
             else:
                 string_content.append(ord(char))
             self.pos += 1
-        
+
         # ダブルクォート終了
-        if not self.consume_string('"'):
+        if not self.consume('"', "“", "”"):
             self.pos = saved_pos
-            raise SyntaxError(f"閉じていない文字列", error_details(self.text, self.pos))
+            raise SyntaxError(f"閉じ`\"`を忘れないで", error_details(self.text, saved_pos))
 
         self.consume_whitespace()
         return StringLiteral(string_content)
@@ -748,30 +974,30 @@ class NanakoParser(object):
         saved_pos = self.pos
         
         # マイナス符号（オプション）
-        if not self.consume_string("-"):
+        if not self.consume("-", "ー"):
             self.pos = saved_pos
             return None
         self.consume_whitespace()
         element = self.parse_expression()
         if element is None:
-            raise SyntaxError(f"Expected expression after '-'", error_details(self.text, self.pos))
+            raise SyntaxError(f"`-`の次に何か忘れてない？", error_details(self.text, self.pos))
         self.consume_whitespace()
         return Minus(element)        
 
     def parse_abs(self) -> Abs:
         """絶対値または長さをパース"""
         saved_pos = self.pos
-        if not self.consume_string("|"):
+        if not self.consume("|", "｜"):
             self.pos = saved_pos
             return None
         
         self.consume_whitespace()
         element = self.parse_expression()
         if element is None:
-            raise SyntaxError(f"Expected expression after '|'", error_details(self.text, self.pos))
+            raise SyntaxError(f"`|`の次に何か忘れてない？", error_details(self.text, self.pos))
         self.consume_whitespace()
-        if not self.consume_string("|"):
-            raise SyntaxError(f"Expected closing '|'", error_details(self.text, self.pos))
+        if not self.consume("|", "｜"):
+            raise SyntaxError(f"閉じ`|`を忘れないで", error_details(self.text, self.pos))
         self.consume_whitespace()
         return Abs(element)
 
@@ -779,7 +1005,7 @@ class NanakoParser(object):
         """関数をパース"""
         saved_pos = self.pos
         # "λ" または "入力"
-        if not (self.consume_string("λ") or self.consume_string("入力")):
+        if not self.consume("入力", "λ"):
             self.pos = saved_pos
             return None
 
@@ -790,27 +1016,27 @@ class NanakoParser(object):
         while True:
             identifier = self.parse_identifier()
             if identifier is None:
-                raise SyntaxError(f"Expected identifier", error_details(self.text, self.pos))
+                raise SyntaxError(f"変数名が必要", error_details(self.text, self.pos))
             if identifier in parameters:
-                raise SyntaxError(f"Duplicate parameter '{identifier}'", error_details(self.text, self.pos))
+                raise SyntaxError(f"同じ変数名を使っているよ: '{identifier}'", error_details(self.text, self.pos))
             parameters.append(identifier)
             self.consume_whitespace()
-            if not self.consume_string(","):
+            if not self.consume(",", "、"):
                 break
             self.consume_whitespace()
         
         if len(parameters) == 0:
-            raise SyntaxError(f"Expected parameter", error_details(self.text, self.pos))
+            raise SyntaxError(f"少なくとも一つの変数名が必要", error_details(self.text, self.pos))
 
         self.consume_whitespace()
         if not self.consume_string("に対し"):
-            raise SyntaxError(f"Expected 'に対し'", error_details(self.text, self.pos))
+            raise SyntaxError(f"`に対し`が必要", error_details(self.text, self.pos))
         self.consume_string("て")
         self.consume_cma()
         body = self.parse_block()
         
         if body is None:
-            raise SyntaxError(f"Expected function body", error_details(self.text, self.pos))
+            raise SyntaxError("関数の本体は？ { }で囲んでね！", error_details(self.text, self.pos))
         self.consume_whitespace()
         return Function(parameters, body)
     
@@ -823,7 +1049,7 @@ class NanakoParser(object):
             return None
         self.consume_whitespace()
 
-        if not self.consume_string("("):
+        if not self.consume("(", "（"):
             self.pos = saved_pos
             return None
 
@@ -833,13 +1059,13 @@ class NanakoParser(object):
         while True:
             expression = self.parse_expression()
             if expression is None:
-                raise SyntaxError(f"Expected expression in function call", error_details(self.text, self.pos))
+                raise SyntaxError(f"関数なら引数を忘れないで", error_details(self.text, self.pos))
             arguments.append(expression)
             self.consume_whitespace()
-            if self.consume_string(")"):
+            if self.consume(")", "）"):
                 break
-            if not self.consume_string(","):
-                raise SyntaxError(f"Expected ',' or ')' in function call", error_details(self.text, self.pos))
+            if not self.consume(",", "、", "，"):
+                raise SyntaxError(f"閉じ`)`を忘れないで", error_details(self.text, self.pos))
             self.consume_whitespace()
 
         self.consume_whitespace()
@@ -849,7 +1075,7 @@ class NanakoParser(object):
         """配列をパース"""
         saved_pos = self.pos
          # "[" で始まる
-        if not self.consume_string("["):
+        if not self.consume("[", "【"):
             self.pos = saved_pos
             return None
         
@@ -857,17 +1083,17 @@ class NanakoParser(object):
         saved_pos = self.pos
         while True:
             self.consume_whitespace()
-            if self.consume_string("]"):
+            if self.consume("]", "】"):
                 break
             expression = self.parse_expression()
             if expression is None:
-                raise SyntaxError(f"ここには式が来るはずです", error_details(self.text, self.pos))
+                raise SyntaxError(f"何か忘れてます", error_details(self.text, self.pos))
             elements.append(expression)
             self.consume_whitespace()
-            if self.consume_string("]"):
+            if self.consume("]", "】"):
                 break
-            if not self.consume_string(","):
-                raise SyntaxError(f"閉じ`]`がないよ", error_details(self.text, saved_pos))
+            if not self.consume(",", "、", "，"):
+                raise SyntaxError(f"閉じ`]`を忘れないで", error_details(self.text, saved_pos))
 
         self.consume_whitespace()
         return ArrayList(elements)
@@ -882,15 +1108,18 @@ class NanakoParser(object):
     def parse_variable(self) -> Variable:
         """変数をパース"""
         name = self.parse_identifier()
+        if name is None:
+            return None
+
         indices = []
         
         self.consume_whitespace()
-        while self.consume_string("["):
+        while self.consume("[", "【"):
             self.consume_whitespace()
             index = self.parse_expression()
             indices.append(index)
-            if not self.consume_string("]"):
-                raise SyntaxError(f"閉じ`]`が必要だよ", error_details(self.text, self.pos))
+            if not self.consume("]", "】"):
+                raise SyntaxError(f"閉じ `]`を忘れないで", error_details(self.text, self.pos))
             self.consume_whitespace()
         if len(indices) == 0:
             indices = None
@@ -899,15 +1128,17 @@ class NanakoParser(object):
     def parse_block(self) -> Block:
         """ブロックをパース"""
         self.consume_whitespace()
-        if not self.consume_string("{"):
-            raise SyntaxError(f"Expected opening '{{'", error_details(self.text, self.pos))
+        saved_pos = self.pos
+        if not self.consume("{", "｛"):
+            self.pos = saved_pos
+            return None
         self.consume_until_eol()
         indent_depth = self.consume_whitespace()
         found_closing_brace = False
         statements = []
         while self.pos < self.length:
             self.consume_whitespace()
-            if self.consume_string("}"):
+            if self.consume("}", "｝"):
                 found_closing_brace = True
                 break
             stmt = self.parse_statement()
@@ -915,7 +1146,7 @@ class NanakoParser(object):
                 statements.append(stmt)
 
         if not found_closing_brace:
-            raise SyntaxError(f"Expected closing '}}'", error_details(self.text, self.pos))
+            raise SyntaxError("閉じ `}`を忘れないで", error_details(self.text, saved_pos))
 
         self.consume_whitespace()
         return Block(statements)
@@ -933,7 +1164,10 @@ class NanakoParser(object):
         while self.consume_digit():
             pass
         
-        return self.text[saved_pos:self.pos]
+        name = self.text[saved_pos:self.pos]
+        if len(name) > 0:
+            return name
+        return None
     
     def not_identifier_words(self) -> bool:
         # 除外キーワードチェック
@@ -944,16 +1178,15 @@ class NanakoParser(object):
         return True
     
     def consume_alpha(self) -> bool:
-        if self.pos >= self.length:
-            return False
-        char = self.text[self.pos]
-        if (char.isalpha() or char == '_' or 
-                '\u4e00' <= char <= '\u9fff' or  # 漢字
-                '\u3040' <= char <= '\u309f' or  # ひらがな
-                '\u30a0' <= char <= '\u30ff' or  # カタカナ
-                char == 'ー'):
-            self.pos += 1
-            return True
+        if self.pos < self.length:
+            char = self.text[self.pos]
+            if (char.isalpha() or char == '_' or 
+                    '\u4e00' <= char <= '\u9fff' or  # 漢字
+                    '\u3040' <= char <= '\u309f' or  # ひらがな
+                    '\u30a0' <= char <= '\u30ff' or  # カタカナ
+                    char == 'ー'):
+                self.pos += 1
+                return True
         return False
 
     def consume(self, *strings) -> bool:
@@ -995,7 +1228,7 @@ class NanakoParser(object):
         return c
     
     def consume_cma(self):
-        self.consume_string("、")
+        self.consume("、", "，", ",")
         self.consume_whitespace()
     
     def consume_eol(self):
