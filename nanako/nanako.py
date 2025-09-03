@@ -97,13 +97,16 @@ class ASTNode(ABC):
         pass
     
     @abstractmethod
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         pass
 
 # Statement classes
 @dataclass
 class Statement(ASTNode):
-    pass
+    def semicolon(self, lang="js") -> str:
+        if lang == "py":
+            return ""
+        return ";"
 
 # Expression classes
 @dataclass
@@ -123,10 +126,10 @@ class Program(Statement):
         for statement in self.statements:
             statement.evaluate(runtime, env)
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         lines = []
         for statement in self.statements:
-            lines.append(statement.emit(lang, indent_level))
+            lines.append(statement.emit(lang, indent))
         return "\n".join(lines)
 
 @dataclass
@@ -142,13 +145,14 @@ class Block(Statement):
         for statement in self.statements:
             statement.evaluate(runtime, env)
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         lines = []
         for statement in self.statements:
-            lines.append(statement.emit(lang, indent_level))
+            lines.append(statement.emit(lang, indent+"    "))
         if lang == "py":
-            indent = '    ' * indent_level
             lines.append(f"{indent}pass")
+        else:
+            lines.append(f"{indent}}}")
         return "\n".join(lines)
 
 
@@ -162,7 +166,7 @@ class NullValue(Expression):
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return None
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         if lang == "py":
             return "None"
         return "null"
@@ -179,7 +183,7 @@ class Number(Expression):
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return self.value
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         return str(int(self.value)) if self.value.is_integer() else str(self.value)
 
 
@@ -200,10 +204,10 @@ class Abs(Expression):
             return len(value)
         return 0
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         if lang == "py":
-            return "abs(" + self.element.emit(lang, indent_level) + ")"
-        return "Math.abs(" + self.element.emit(lang, indent_level) + ")"
+            return "len(" + self.element.emit(lang, indent) + ")"
+        return "(" + self.element.emit(lang, indent) + ").length"
 
 @dataclass
 class Minus(Expression):
@@ -217,11 +221,11 @@ class Minus(Expression):
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.element.evaluate(runtime, env)
         if not isinstance(value, (int, float)):
-            raise NanakoError("数値ではないよ", error_details(self.source, self.pos))
+            raise NanakoError("数ではないよ", error_details(self.source, self.pos))
         return -value
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        return f"-{self.element.emit(lang, indent_level)}"
+    def emit(self, lang="js", indent:str = "") -> str:
+        return f"-{self.element.emit(lang, indent)}"
 
 @dataclass
 class ArrayList(Expression):
@@ -235,10 +239,10 @@ class ArrayList(Expression):
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return [element.evaluate(runtime, env) for element in self.elements]
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         elements = []
         for element in self.elements:
-            elements.append(element.emit(lang, indent_level))
+            elements.append(element.emit(lang, indent))
         return "[" + ", ".join(elements) + "]"
 
 @dataclass
@@ -253,7 +257,7 @@ class StringLiteral(Expression):
         # 文字列を文字コードの配列に変換
         return self.string_array
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         chars = []
         for code in self.string_array:
             chars.append(chr(code))
@@ -276,9 +280,9 @@ class Function(Expression):
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return self
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         params = ", ".join(self.parameters)
-        body = self.body.emit(lang, indent_level+1)
+        body = self.body.emit(lang, indent)
         if lang == "py":
             return f"def {self.name}({params}):\n{body}"
         return f"function {self.name}({params}) {{\n{body}\n}}"
@@ -298,7 +302,7 @@ class FuncCall(Expression):
         if self.name in env:
             function = env[self.name]
         if len(function.parameters) != len(self.arguments):
-            raise NanakoError("引数の数がパラメータの数と一致しません", error_details(self.source, self.pos))
+            raise NanakoError("引数の数が一致しません", error_details(self.source, self.pos))
 
         new_env = env.copy()
         arguments = []
@@ -309,17 +313,16 @@ class FuncCall(Expression):
         try:
             runtime.push_call_frame(self.name, arguments, self.pos)
             function.body.evaluate(runtime, new_env)
-            return None
         except ReturnBreakException as e:
             runtime.pop_call_frame()
             return e.value
         return None
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         arguments = []
         for argument in self.arguments:
-            arguments.append(argument.emit(lang, indent_level))
-        params = arguments
+            arguments.append(argument.emit(lang, indent))
+        params = ", ".joinarguments
         return f"{self.name}({params})"
 
 @dataclass
@@ -364,12 +367,12 @@ class Variable(Expression):
             raise NanakoError(f"この配列の添え字は0から{len(value)-1}の間ですよ", error_details(self.source, self.pos))
         return value[index]
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
+    def emit(self, lang="js", indent:str = "") -> str:
         if self.indices is None or len(self.indices) == 0:
             return self.name
         indices = []
         for index in self.indices:
-            indices.append(f"[{index.emit(lang, indent_level)}]")
+            indices.append(f"[{index.emit(lang, indent)}]")
         indices_str = "".join(indices)
         return f"{self.name}{indices_str}"
 
@@ -399,13 +402,12 @@ class Assignment(Statement):
         else:
             var_value[index] = value
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
-        variable = self.variable.emit(lang, indent_level)
-        expression = self.expression.emit(lang, indent_level)
+    def emit(self, lang="js", indent:str = "") -> str:
+        variable = self.variable.emit(lang, indent)
+        expression = self.expression.emit(lang, indent)
         if variable.endswith('[null]') or variable.endswith('[None]'):
-            return f'{indent}{variable[:-6]}.append({expression})'
-        return f"{indent}{variable} = {expression}"
+            return f'{indent}{variable[:-6]}.append({expression}){self.semicolon(lang)}'
+        return f"{indent}{variable} = {expression}{self.semicolon(lang)}"
 
 @dataclass
 class Increment(Statement):
@@ -420,18 +422,17 @@ class Increment(Statement):
         var_value, index = self.variable.get_valueindex(runtime, env)
         if index == -1:
             if not isinstance(env[self.variable.name], (int,float)):
-                raise NanakoError(f"`{self.variable.name}`は数値じゃないから増やせないよ", error_details(self.source, self.pos))
+                raise NanakoError(f"`{self.variable.name}`は数じゃないから増やせないよ", error_details(self.source, self.pos))
             env[self.variable.name] += 1
         else:
             if not isinstance(var_value[index], (int,float)):
-                raise NanakoError(f"数値じゃないから増やせないよ", error_details(self.source, self.pos))
+                raise NanakoError(f"数じゃないから増やせないよ", error_details(self.source, self.pos))
             var_value[index] += 1
         runtime.increment_count += 1
     
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
-        variable = self.variable.emit(lang, indent_level)
-        return f"{indent}{variable} += 1"
+    def emit(self, lang="js", indent:str = "") -> str:
+        variable = self.variable.emit(lang, indent)
+        return f"{indent}{variable} += 1{self.semicolon(lang)}"
 
 @dataclass
 class Decrement(Statement):
@@ -446,18 +447,17 @@ class Decrement(Statement):
         var_value, index = self.variable.get_valueindex(runtime, env)
         if index == -1:
             if not isinstance(env[self.variable.name], (int, float)):
-                raise NanakoError(f"`{self.variable.name}`は数値じゃないから減らせないよ", error_details(self.source, self.pos))
+                raise NanakoError(f"`{self.variable.name}`は数じゃないから減らせないよ", error_details(self.source, self.pos))
             env[self.variable.name] -= 1
         else:
             if not isinstance(var_value[index], (int, float)):
-                raise NanakoError("数値じゃないから減らせないよ", error_details(self.source, self.pos))
+                raise NanakoError("数じゃないから減らせないよ", error_details(self.source, self.pos))
             var_value[index] -= 1
         runtime.decrement_count += 1
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
-        variable = self.variable.emit(lang, indent_level)
-        return f"{indent}{variable} -= 1"
+    def emit(self, lang="js", indent:str = "") -> str:
+        variable = self.variable.emit(lang, indent)
+        return f"{indent}{variable} -= 1{self.semicolon(lang)}"
 
 
 @dataclass
@@ -498,9 +498,8 @@ class IfStatement(Statement):
         elif self.else_block:
             self.else_block.evaluate(runtime, env)
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
-        condition = self.condition.emit(lang, indent_level)
+    def emit(self, lang="js", indent:str = "") -> str:
+        condition = self.condition.emit(lang, indent)
         if self.operator == "以上":
             op = ">="
         elif self.operator == "以下":
@@ -520,21 +519,13 @@ class IfStatement(Statement):
             lines.append(f"{indent}if {condition} {op} 0:")
         else:
             lines.append(f"{indent}if({condition} {op} 0) {{")
-        lines.append(self.then_block.emit(lang, indent_level + 1))
-        if lang == "py":
-            pass
-        else:
-            lines.append(f"{indent}}}")
+        lines.append(self.then_block.emit(lang, indent))
         if self.else_block:
             if lang == "py":
                 lines.append(f"{indent}else:")
             else:
                 lines.append(f"{indent}else {{")
-            lines.append(self.else_block.emit(lang, indent_level + 1))
-            if lang == "py":
-                pass
-            else:
-                lines.append(f"{indent}}}")
+            lines.append(self.else_block.emit(lang, indent))
         return "\n".join(lines)
 
 @dataclass
@@ -561,8 +552,7 @@ class LoopStatement(Statement):
             runtime.checkExecution(details)
             self.body.evaluate(runtime, env)
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
+    def emit(self, lang="js", indent:str = "") -> str:
         lines = []
         if isinstance(self.count, NullValue):
             if lang == "py":
@@ -570,22 +560,16 @@ class LoopStatement(Statement):
             else:
                 lines.append(f"{indent}while(true) {{")
         else:
-            count = self.count.emit(lang, indent_level)
+            count = self.count.emit(lang, indent)
             if lang == "py":
                 lines.append(f"{indent}for _ in range(abs({count}))):")
             else:
                 lines.append(f"{indent}for(var i = 0; i < abs({count}); i++) {{")
 
-
-        lines.append(self.body.emit(lang, indent_level + 1))
-        if lang == "py":
-            lines.append(f"{indent}}}")
-        else:
-            lines.append(f"{indent}}}")
+        lines.append(self.body.emit(lang, indent))
         return "\n".join(lines)
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
+    def emit(self, lang="js", indent:str = "") -> str:
         lines = []
         if isinstance(self.count, NullValue):
             if lang == "py":
@@ -593,17 +577,13 @@ class LoopStatement(Statement):
             else:
                 lines.append(f"{indent}while(true) {{")
         else:
-            count = self.count.emit(lang, indent_level)
+            count = self.count.emit(lang, indent)
             if lang == "py":
                 return f"{indent}for _ in range({count}):"
             else:
-                i = f"i{indent_level}"
+                i = f"i{len(indent)}"
                 return f"{indent}for(var {i} = 0; {i} < {count}; {i}+=1) {{"
-        lines.append(self.body.emit(lang, indent_level + 1))
-        if lang == "py":
-            pass
-        else:
-            lines.append(f"{indent}}}")
+        lines.append(self.body.emit(lang, indent))
         return "\n".join(lines)
 
 
@@ -620,9 +600,8 @@ class ReturnStatement(Statement):
         value = self.expression.evaluate(runtime, env)
         raise ReturnBreakException(value)
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
-        return f"{indent}return {self.expression.emit(lang, indent_level)}"
+    def emit(self, lang="js", indent:str = "") -> str: 
+        return f"{indent}return {self.expression.emit(lang, indent)}{self.semicolon(lang)}"
 
 @dataclass
 class ExpressionStatement(Statement):
@@ -638,9 +617,8 @@ class ExpressionStatement(Statement):
         runtime.print(value, self.source, self.pos)
         return value
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
-        return f"{indent}{self.expression.emit(lang, indent_level)}"
+    def emit(self, lang="js", indent:str = "") -> str:
+        return f"{indent}{self.expression.emit(lang, indent)}{self}"
 
 @dataclass
 class DocTest(Statement):
@@ -659,16 +637,14 @@ class DocTest(Statement):
         if value != answer_value:
             raise NanakoError(f"テストに失敗: {value}", error_details(self.source, self.pos))
 
-    def emit(self, lang="js", indent_level:int = 0) -> str:
-        indent = '    ' * indent_level
-        expression = self.expression.emit(lang, indent_level)
-        answer = self.answer.emit(lang, indent_level)
-        return f"{indent}assert ({expression} == {answer})"
+    def emit(self, lang="js", indent:str = "") -> str:
+        expression = self.expression.emit(lang, indent)
+        answer = self.answer.emit(lang, indent)
+        return f"{indent}assert ({expression} == {answer}){self.semicolon(lang)}"
+
 
 class NanakoParser(object):
     
-
-
     def parse(self, text) -> Program:
         self.text = self.normalize(text)
         self.pos = 0
@@ -720,7 +696,7 @@ class NanakoParser(object):
             stmt.source = self.text
             stmt.pos = saved_pos
             return stmt
-        raise SyntaxError(f"ななこの知らない書き方だよ", error_details(self.text, saved_pos))
+        raise SyntaxError(f"ななこの知らない書き方かな", error_details(self.text, saved_pos))
 
     def parse_doctest(self) -> Statement:
         """ドキュテストをパース"""
