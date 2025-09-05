@@ -40,7 +40,7 @@ def run_file(filename, env):
 
 def interactive_mode(env):
     """インタラクティブモード"""
-    print("ななこ言語インタラクティブモード")
+    print("ななこ言語")
     print("終了するには 'quit' または 'exit' を入力してください")
         
     while True:
@@ -55,7 +55,14 @@ def interactive_mode(env):
                 else:
                     runtime = NanakoRuntime()
                     env = runtime.exec(code, env)        
+        except SyntaxError as e:
+            # tracebackでフォーマット
+            formatted = traceback.format_exception_only(SyntaxError, e)
+            print("".join(formatted).strip())
         except KeyboardInterrupt:
+            print("\n終了します")
+            break
+        except EOFError:
             print("\n終了します")
             break
     return env

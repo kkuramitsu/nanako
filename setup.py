@@ -14,7 +14,7 @@ def read_readme():
 
 setup(
     name="nanako",
-    version="0.1.0",
+    version="0.1.2",
     author="Nanako Project",
     author_email="",
     description="An educational programming language for the generative AI era",

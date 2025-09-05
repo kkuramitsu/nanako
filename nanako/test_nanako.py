@@ -575,7 +575,6 @@ Y = 絶対値(5)''')
     def test_mod_function(self):
         """剰余関数のテスト"""
         program = self.parser.parse('''
-# GCD
 あまり = 入力 X, Y に対し {
     X回、くり返す {
         R = 0
@@ -636,7 +635,155 @@ X = 最大公約数(60, 48)
         program.evaluate(self.runtime, self.env)
         assert self.env['X'] == 12
 
+    def test_recursive_function(self):
+        """再帰関数のテスト"""
+        program = self.parser.parse('''
+# 再帰関数による総和
 
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+減らす = 入力 X に対し {
+    Xを減らす
+    Xが答え
+}
+                                    
+総和 = 入力 n に対し {
+    もし n が 1 ならば、{
+        1が答え
+    }
+    そうでなければ、{
+        足し算(総和(減らす(n)), n)が答え
+    }
+}
+
+X = 総和(4)
+''')
+        self.env = {}
+        self.runtime.start(timeout=1)
+        program.evaluate(self.runtime, self.env)
+        assert self.env['X'] == 10
+
+    def test_sum_function(self):
+        """合計のテスト"""
+        program = self.parser.parse('''
+# 数列の合計
+
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+合計 = 入力 数列 に対し {
+    i = 0
+    sum = 0
+    |数列|回、くり返す {
+        sum = 足し算(sum, 数列[i])
+        iを増やす
+    }
+    sumが答え
+}
+
+X = 合計([1, 2, 3, 4, 5])
+''')
+        self.env = {}
+        self.runtime.start(timeout=1)
+        program.evaluate(self.runtime, self.env)
+        assert self.env['X'] == 15
+
+
+class TestNanakoEmitCode:
+    """Nanako のテストクラス"""
+    
+    def setup_method(self):
+        """各テストメソッドの前に実行される初期化"""
+        self.parser = NanakoParser()
+        self.runtime = NanakoRuntime()
+        self.env = {}
+
+    def test_emit_js(self):
+        """コード変換のテスト"""
+        program = self.parser.parse(EMIT_NANAKO)
+        code = program.emit("js", "|")
+        print(code)
+        assert code == EMIT_JS
+
+    def test_emit_py(self):
+        """コード変換のテスト"""
+        program = self.parser.parse(EMIT_NANAKO)
+        code = program.emit("py", "|")
+        print(code)
+        assert code == EMIT_PYTHON
+
+EMIT_NANAKO = """
+合計 = 入力 数列 に対し {
+    i = 0
+    sum = 0
+    buf = []
+    |数列|回、くり返す {
+        sum = 足し算(sum, 数列[i])
+        もしsumが10より大きいならば、{
+            buf[0] = 数列[i]
+        }
+        そうでなければ、{
+            buf[?] = 数列[i]
+        }
+        ?回くり返す {
+            sum = -sum
+        }
+        iを増やす
+    }
+    sumが答え
+}
+                                    
+>>> 合計([1, 2, 3, 4, 5])
+15
+"""
+
+EMIT_JS = """\
+|合計 = function (数列) {
+|    i = 0;
+|    sum = 0;
+|    buf = [];
+|    for(var i1 = 0; i1 < (数列).length; i1++) {
+|        sum = 足し算(sum, 数列[i]);
+|        if(sum > 10) {
+|            buf[0] = 数列[i];
+|        }
+|        else {
+|            buf.push(数列[i]);
+|        }
+|        while(true) {
+|            sum = -sum;
+|        }
+|        i += 1;
+|    }
+|    return sum;
+|};
+|console.assert(合計([1, 2, 3, 4, 5]) == 15);"""
+
+EMIT_PYTHON = """\
+|def 合計(数列):
+|    i = 0
+|    sum = 0
+|    buf = []
+|    for _ in range(len(数列)):
+|        sum = 足し算(sum, 数列[i])
+|        if sum > 10:
+|            buf[0] = 数列[i]
+|        else:
+|            buf.append(数列[i])
+|        while True:
+|            sum = -sum
+|        i += 1
+|    return sum
+|assert (合計([1, 2, 3, 4, 5]) == 15)"""
 
 if __name__ == '__main__':
     # pytest を直接実行

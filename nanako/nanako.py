@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from abc import ABC, abstractmethod
-import random, time
+import time
 
 ## utils 
 
@@ -91,6 +91,15 @@ class ReturnBreakException(RuntimeError):
 class ASTNode(ABC):
     source: str
     pos: int
+    end_pos: int
+
+    def __init__(self):
+        self.source = ""
+        self.pos = 0
+        self.end_pos = 0
+
+    def error_details(self):
+        return error_details(self.source, self.pos)
 
     @abstractmethod
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]) -> Any:
@@ -103,6 +112,9 @@ class ASTNode(ABC):
 # Statement classes
 @dataclass
 class Statement(ASTNode):
+    def __init__(self):
+        super().__init__()
+
     def semicolon(self, lang="js") -> str:
         if lang == "py":
             return ""
@@ -111,16 +123,19 @@ class Statement(ASTNode):
 # Expression classes
 @dataclass
 class Expression(ASTNode):
+
+    def __init__(self):
+        super().__init__()
+
     pass
 
 @dataclass
 class Program(Statement):
     statements: List[Statement]
 
-    def __init__(self, statements: List[Statement], source="", pos=0):
+    def __init__(self, statements: List[Statement]):
+        super().__init__()
         self.statements = statements
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         for statement in self.statements:
@@ -133,13 +148,12 @@ class Program(Statement):
         return "\n".join(lines)
 
 @dataclass
-class Block(Statement):
+class NanakoBlock(Statement):
     statements: List[Statement]
 
-    def __init__(self, statements: List[Statement], source="", pos=0):
+    def __init__(self, statements: List[Statement]):
+        super().__init__()
         self.statements = statements
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         for statement in self.statements:
@@ -150,18 +164,18 @@ class Block(Statement):
         for statement in self.statements:
             lines.append(statement.emit(lang, indent+"    "))
         if lang == "py":
-            lines.append(f"{indent}pass")
+            if len(lines) == 0:
+                lines.append(f"{indent}pass")
         else:
             lines.append(f"{indent}}}")
         return "\n".join(lines)
 
 
 @dataclass
-class NullValue(Expression):
+class NanakoNull(Expression):
     
-    def __init__(self, source="", pos=0):
-        self.source = source
-        self.pos = pos
+    def __init__(self):
+        super().__init__()
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return None
@@ -172,29 +186,27 @@ class NullValue(Expression):
         return "null"
 
 @dataclass
-class Number(Expression):
+class NanakoNumber(Expression):
     value: float
 
-    def __init__(self, value: float = 0.0, source="", pos=0):
+    def __init__(self, value: float = 0.0):
+        super().__init__()
         self.value = float(value)
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return self.value
 
     def emit(self, lang="js", indent:str = "") -> str:
-        return str(int(self.value)) if self.value.is_integer() else str(self.value)
+        return str(int(self.value))
 
 
 @dataclass
-class Abs(Expression):
+class NanakoLength(Expression):
     element: Expression
 
-    def __init__(self, element: Expression, source="", pos=0):
+    def __init__(self, element: Expression):
+        super().__init__()
         self.element = element
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.element.evaluate(runtime, env)
@@ -210,13 +222,12 @@ class Abs(Expression):
         return "(" + self.element.emit(lang, indent) + ").length"
 
 @dataclass
-class Minus(Expression):
+class NanakoMinus(Expression):
     element: Expression
 
-    def __init__(self, element: Expression, source="", pos=0):
+    def __init__(self, element: Expression):
+        super().__init__()
         self.element = element
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.element.evaluate(runtime, env)
@@ -228,13 +239,12 @@ class Minus(Expression):
         return f"-{self.element.emit(lang, indent)}"
 
 @dataclass
-class ArrayList(Expression):
+class NanakoArray(Expression):
     elements: List[Expression]
 
-    def __init__(self, elements: List[Expression], source="", pos=0):
+    def __init__(self, elements: List[Expression]):
+        super().__init__()
         self.elements = elements
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return [element.evaluate(runtime, env) for element in self.elements]
@@ -246,12 +256,11 @@ class ArrayList(Expression):
         return "[" + ", ".join(elements) + "]"
 
 @dataclass
-class StringLiteral(Expression):
+class NanakoString(Expression):
 
-    def __init__(self, string_array: List[int], source="", pos=0):
+    def __init__(self, string_array: List[int]):
+        super().__init__()
         self.string_array = string_array
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         # 文字列を文字コードの配列に変換
@@ -265,17 +274,16 @@ class StringLiteral(Expression):
         return '"' + content + '"'
 
 @dataclass
-class Function(Expression):
+class NanakoFunction(Expression):
     name: str
     parameters: List[str]
-    body: Block
+    body: NanakoBlock
 
-    def __init__(self, parameters: List[str], body: Block, source="", pos=0):
+    def __init__(self, parameters: List[str], body: NanakoBlock):
+        super().__init__()
         self.name = "<lambda>"
         self.parameters = parameters
         self.body = body
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return self
@@ -285,18 +293,17 @@ class Function(Expression):
         body = self.body.emit(lang, indent)
         if lang == "py":
             return f"def {self.name}({params}):\n{body}"
-        return f"function {self.name}({params}) {{\n{body}\n}}"
+        return f"function ({params}) {{\n{body}"
 
 @dataclass
-class FuncCall(Expression):
+class NanakoFuncCall(Expression):
     name: str
     arguments: List[Expression]
 
-    def __init__(self, name: str, arguments: List[Expression], source="", pos=0):
+    def __init__(self, name: str, arguments: List[Expression]):
+        super().__init__()
         self.name = name
         self.arguments = arguments
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         if self.name in env:
@@ -322,50 +329,68 @@ class FuncCall(Expression):
         arguments = []
         for argument in self.arguments:
             arguments.append(argument.emit(lang, indent))
-        params = ", ".joinarguments
+        params = ", ".join(arguments)
         return f"{self.name}({params})"
 
 @dataclass
-class Variable(Expression):
+class NanakoVariable(Expression):
     name: str
     indices: List[Expression]  # 配列アクセス用
 
-    def __init__(self, name: str, indices: Optional[List[Expression]] = None, source="", pos=0):
+    def __init__(self, name: str, indices: Optional[List[Expression]] = None):
+        super().__init__()
         self.name = name
         self.indices = indices
-        self.source = source
-        self.pos = pos 
 
-    def get_valueindex(self, runtime: NanakoRuntime, env: Dict[str, Any]):
+    def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         if self.name in env:
             value = env[self.name]
         else:
-            raise NanakoError(f"知らないよ！この変数 '{self.name}'", error_details(self.source, self.pos))
-
-        if isinstance(self.indices, list) and len(self.indices) > 0:
-            for i, index_expression in enumerate(self.indices):
-                index = index_expression.evaluate(runtime, env)
-                if not isinstance(index, (int, float, NullValue)):
-                    raise NanakoError(f"配列の添え字は数にして", error_details(index_expression.source, index_expression.pos))
-                if i == len(self.indices) - 1:
-                    if isinstance(index, float):
-                        index = int(index)
-                    return value, index
-                value = value[int(index)]
-        return value, -1
-
-    def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
-        value, index = self.get_valueindex(runtime, env)
-        if index == -1:
+            raise NanakoError(f"知らない変数だよ！ '{self.name}'", self.error_details())
+        if self.indices is None or len(self.indices) == 0:
             return value
-        if not isinstance(value, list):
-            raise NanakoError(f"これは配列ではありません", error_details(self.source, self.pos))
-        if index is None:
-            # ランダムに選ぶ
-            return random.choice(value)    
-        if index >= len(value):
-            raise NanakoError(f"この配列の添え字は0から{len(value)-1}の間ですよ", error_details(self.source, self.pos))
-        return value[index]
+        
+        array = env[self.name]
+        for index in self.indices:
+            if not isinstance(array, list):
+                raise NanakoError(f"配列ではありません: ❌{array}", self.error_details())
+            index_value = index.evaluate(runtime, env)
+            if isinstance(index_value, (int, float)):
+                index_value = int(index_value)
+                if 0<= index_value < len(array):
+                    array = array[index_value]
+                    continue
+            raise NanakoError(f"配列の添え字は0から{len(array)-1}の間ですよ: ❌{index_value}", index.error_details())
+        return array
+
+    def evaluate_with(self, runtime: NanakoRuntime, env: Dict[str, Any], value):
+        if self.indices is None or len(self.indices) == 0:
+            env[self.name] = value
+            return       
+
+        if self.name in env:
+            array = env[self.name]
+        else:
+            raise NanakoError(f"知らない変数だよ！ '{self.name}'", self.error_details())
+
+        for i, index in enumerate(self.indices):
+            if not isinstance(array, list):
+                raise NanakoError(f"配列ではありません: ❌{array}", self.error_details())
+            index_value = index.evaluate(runtime, env)
+            if isinstance(index_value, (int, float)):
+                index_value = int(index_value)
+                if index_value < 0 or index_value >= len(array):
+                    break
+                if i == len(self.indices) - 1:
+                    array[index_value] = value
+                    return None
+                array = array[index_value]
+            elif index_value is None:
+                if i == len(self.indices) - 1:
+                    array.append(value)
+                    return None
+            break
+        raise NanakoError(f"配列の添え字は0から{len(array)-1}の間ですよ: ❌{index_value}", index.error_details())
 
     def emit(self, lang="js", indent:str = "") -> str:
         if self.indices is None or len(self.indices) == 0:
@@ -377,57 +402,46 @@ class Variable(Expression):
         return f"{self.name}{indices_str}"
 
 @dataclass
-class Assignment(Statement):
-    variable: Variable
+class NanakoAssignment(Statement):
+    variable: NanakoVariable
     expression: Expression
 
-    def __init__(self, variable: Variable, expression: Expression, source="", pos=0):
+    def __init__(self, variable: NanakoVariable, expression: Expression):
+        super().__init__()
         self.variable = variable
         self.expression = expression
-        if isinstance(expression, Function):
-            expression.name
-        self.source = source
-        self.pos = pos
+        if isinstance(expression, NanakoFunction):
+            expression.name = variable.name
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.expression.evaluate(runtime, env)
-        if self.variable.name not in env and self.variable.indices is None:
-            env[self.variable.name] = 0
-        var_value, index = self.variable.get_valueindex(runtime, env)
-        if index is None:
-            # 特別な処理: var[?] = value の場合
-            var_value.append(value)
-        elif index == -1:
-            env[self.variable.name] = value
-        else:
-            var_value[index] = value
+        self.variable.evaluate_with(runtime, env, value)
 
     def emit(self, lang="js", indent:str = "") -> str:
         variable = self.variable.emit(lang, indent)
         expression = self.expression.emit(lang, indent)
         if variable.endswith('[null]') or variable.endswith('[None]'):
-            return f'{indent}{variable[:-6]}.append({expression}){self.semicolon(lang)}'
+            if lang == "py":
+                return f'{indent}{variable[:-6]}.append({expression})'
+            if lang == "js":
+                return f'{indent}{variable[:-6]}.push({expression}){self.semicolon(lang)}'            
+        if lang == "py" and isinstance(self.expression, NanakoFunction):
+            return f"{indent}{expression}"
         return f"{indent}{variable} = {expression}{self.semicolon(lang)}"
 
 @dataclass
-class Increment(Statement):
-    variable: Variable
+class NanakoIncrement(Statement):
+    variable: NanakoVariable
 
-    def __init__(self, variable: Variable, source="", pos=0):
+    def __init__(self, variable: NanakoVariable):
+        super().__init__()
         self.variable = variable
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
-        var_value, index = self.variable.get_valueindex(runtime, env)
-        if index == -1:
-            if not isinstance(env[self.variable.name], (int,float)):
-                raise NanakoError(f"`{self.variable.name}`は数じゃないから増やせないよ", error_details(self.source, self.pos))
-            env[self.variable.name] += 1
-        else:
-            if not isinstance(var_value[index], (int,float)):
-                raise NanakoError(f"数じゃないから増やせないよ", error_details(self.source, self.pos))
-            var_value[index] += 1
+        value = self.variable.evaluate(runtime, env)
+        if not isinstance(value, (int, float)):
+            raise NanakoError(f"数じゃないよ: ❌{value}", self.variable.error_details())
+        self.variable.evaluate_with(runtime, env, value + 1)
         runtime.increment_count += 1
     
     def emit(self, lang="js", indent:str = "") -> str:
@@ -435,24 +449,18 @@ class Increment(Statement):
         return f"{indent}{variable} += 1{self.semicolon(lang)}"
 
 @dataclass
-class Decrement(Statement):
-    variable: Variable
+class NanakoDecrement(Statement):
+    variable: NanakoVariable
 
-    def __init__(self, variable: Variable, source="", pos=0):
+    def __init__(self, variable: NanakoVariable):
+        super().__init__()
         self.variable = variable
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
-        var_value, index = self.variable.get_valueindex(runtime, env)
-        if index == -1:
-            if not isinstance(env[self.variable.name], (int, float)):
-                raise NanakoError(f"`{self.variable.name}`は数じゃないから減らせないよ", error_details(self.source, self.pos))
-            env[self.variable.name] -= 1
-        else:
-            if not isinstance(var_value[index], (int, float)):
-                raise NanakoError("数じゃないから減らせないよ", error_details(self.source, self.pos))
-            var_value[index] -= 1
+        value = self.variable.evaluate(runtime, env)
+        if not isinstance(value, (int, float)):
+            raise NanakoError(f"数じゃないよ: ❌{value}", self.variable.error_details())
+        self.variable.evaluate_with(runtime, env, value - 1)
         runtime.decrement_count += 1
 
     def emit(self, lang="js", indent:str = "") -> str:
@@ -461,37 +469,38 @@ class Decrement(Statement):
 
 
 @dataclass
-class IfStatement(Statement):
-    condition: Expression
+class NanakoIf(Statement):
+    left: Expression
     operator: str  # "以上", "以下", "より大きい", "より小さい", "以外", "未満", ""
-    then_block: Block
-    else_block: Optional[Block] = None
+    right: Expression
+    then_block: NanakoBlock
+    else_block: Optional[NanakoBlock] = None
 
-    def __init__(self, condition: Expression, operator: str, then_block: Block, else_block: Optional[Block] = None, source="", pos=0):
-        self.condition = condition
+    def __init__(self, left: Expression, operator: str, right: Expression, then_block: NanakoBlock, else_block: Optional[NanakoBlock] = None):
+        super().__init__()
+        self.left = left
         self.operator = operator
+        self.right = right
         self.then_block = then_block
         self.else_block = else_block
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
-        cond_value = self.condition.evaluate(runtime, env)
-        base_value = 0
+        left_value = self.left.evaluate(runtime, env)
+        right_value = self.right.evaluate(runtime, env)
         if self.operator == "以上":
-            result = cond_value >= base_value
+            result = left_value >= right_value
         elif self.operator == "以下":
-            result = cond_value <= base_value
+            result = left_value <= right_value
         elif self.operator == "より大きい":
-            result = cond_value > base_value
+            result = left_value > right_value
         elif self.operator == "より小さい":
-            result = cond_value < base_value
+            result = left_value < right_value
         elif self.operator == "以外":
-            result = cond_value != base_value
+            result = left_value != right_value
         elif self.operator == "未満":
-            result = cond_value < base_value
+            result = left_value < right_value
         else:
-            result = cond_value == base_value
+            result = left_value == right_value
         runtime.compare_count += 1
         if result:
             self.then_block.evaluate(runtime, env)
@@ -499,7 +508,8 @@ class IfStatement(Statement):
             self.else_block.evaluate(runtime, env)
 
     def emit(self, lang="js", indent:str = "") -> str:
-        condition = self.condition.emit(lang, indent)
+        left = self.left.emit(lang, indent)
+        right = self.right.emit(lang, indent)
         if self.operator == "以上":
             op = ">="
         elif self.operator == "以下":
@@ -516,9 +526,9 @@ class IfStatement(Statement):
             op = "=="
         lines = []
         if lang == "py":
-            lines.append(f"{indent}if {condition} {op} 0:")
+            lines.append(f"{indent}if {left} {op} {right}:")
         else:
-            lines.append(f"{indent}if({condition} {op} 0) {{")
+            lines.append(f"{indent}if({left} {op} {right}) {{")
         lines.append(self.then_block.emit(lang, indent))
         if self.else_block:
             if lang == "py":
@@ -529,15 +539,14 @@ class IfStatement(Statement):
         return "\n".join(lines)
 
 @dataclass
-class LoopStatement(Statement):
+class NanakoLoop(Statement):
     count: Expression
-    body: Block
+    body: NanakoBlock
 
-    def __init__(self, count: Expression, body: Block, source="", pos=0):
+    def __init__(self, count: Expression, body: NanakoBlock):
+        super().__init__()
         self.count = count
         self.body = body
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         loop_count = self.count.evaluate(runtime, env)
@@ -547,14 +556,16 @@ class LoopStatement(Statement):
                 runtime.checkExecution(details)
                 self.body.evaluate(runtime, env)            
         if isinstance(loop_count, list):
-            loop_count = len(loop_count)
-        for _ in range(abs(int(loop_count))):
+            raise NanakoError(f"配列の長さでは？", details)
+        if loop_count < 0:
+            raise NanakoError(f"負のループ回数: {loop_count}", details)
+        for _ in range(int(loop_count)):
             runtime.checkExecution(details)
             self.body.evaluate(runtime, env)
 
     def emit(self, lang="js", indent:str = "") -> str:
         lines = []
-        if isinstance(self.count, NullValue):
+        if isinstance(self.count, NanakoNull):
             if lang == "py":
                 lines.append(f"{indent}while True:")
             else:
@@ -562,39 +573,23 @@ class LoopStatement(Statement):
         else:
             count = self.count.emit(lang, indent)
             if lang == "py":
-                lines.append(f"{indent}for _ in range(abs({count}))):")
+                lines.append(f"{indent}for _ in range({count}):")
             else:
-                lines.append(f"{indent}for(var i = 0; i < abs({count}); i++) {{")
+                i = f"i{len(indent)//4}"
+                lines.append(f"{indent}for(var {i} = 0; {i} < {count}; {i}++) {{")
 
         lines.append(self.body.emit(lang, indent))
         return "\n".join(lines)
 
-    def emit(self, lang="js", indent:str = "") -> str:
-        lines = []
-        if isinstance(self.count, NullValue):
-            if lang == "py":
-                lines.append(f"{indent}while True:")
-            else:
-                lines.append(f"{indent}while(true) {{")
-        else:
-            count = self.count.emit(lang, indent)
-            if lang == "py":
-                return f"{indent}for _ in range({count}):"
-            else:
-                i = f"i{len(indent)}"
-                return f"{indent}for(var {i} = 0; {i} < {count}; {i}+=1) {{"
-        lines.append(self.body.emit(lang, indent))
-        return "\n".join(lines)
 
 
 @dataclass
-class ReturnStatement(Statement):
+class NanakoReturn(Statement):
     expression: Expression
 
-    def __init__(self, expression: Expression, source="", pos=0):
+    def __init__(self, expression: Expression):
+        super().__init__()
         self.expression = expression
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.expression.evaluate(runtime, env)
@@ -604,13 +599,12 @@ class ReturnStatement(Statement):
         return f"{indent}return {self.expression.emit(lang, indent)}{self.semicolon(lang)}"
 
 @dataclass
-class ExpressionStatement(Statement):
+class NanakoExpression(Statement):
     expression: Expression
 
-    def __init__(self, expression: Expression, source="", pos=0):
+    def __init__(self, expression: Expression):
+        super().__init__()
         self.expression = expression
-        self.source = source
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.expression.evaluate(runtime, env)
@@ -621,15 +615,14 @@ class ExpressionStatement(Statement):
         return f"{indent}{self.expression.emit(lang, indent)}{self}"
 
 @dataclass
-class DocTest(Statement):
+class NanakoDocTest(Statement):
     expression: Expression
     answer: Expression
 
-    def __init__(self, expression: Expression, answer: Expression, pos=0):
+    def __init__(self, expression: Expression, answer: Expression):
+        super().__init__()
         self.expression = expression
         self.answer = answer
-        self.source = ""
-        self.pos = pos
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.expression.evaluate(runtime, env)
@@ -640,8 +633,9 @@ class DocTest(Statement):
     def emit(self, lang="js", indent:str = "") -> str:
         expression = self.expression.emit(lang, indent)
         answer = self.answer.emit(lang, indent)
+        if lang == "js":
+            return f"{indent}console.assert({expression} == {answer}){self.semicolon(lang)}"
         return f"{indent}assert ({expression} == {answer}){self.semicolon(lang)}"
-
 
 class NanakoParser(object):
     
@@ -695,8 +689,10 @@ class NanakoParser(object):
         if stmt:
             stmt.source = self.text
             stmt.pos = saved_pos
+            stmt.end_pos = self.pos
+            self.consume_eol()
             return stmt
-        raise SyntaxError(f"ななこの知らない書き方かな", error_details(self.text, saved_pos))
+        raise SyntaxError(f"ななこの知らない書き方！", error_details(self.text, saved_pos))
 
     def parse_doctest(self) -> Statement:
         """ドキュテストをパース"""
@@ -711,12 +707,11 @@ class NanakoParser(object):
             raise SyntaxError(f"`>>>` の後にはテストする式が必要です", error_details(self.text, self.pos))
         self.consume_eol()
         answer_expression = self.parse_expression()
-        if expression is None:
-            raise SyntaxError(f"`>>>` の次の行には正解の値が必要です", error_details(self.text, self.pos))
-        self.consume_eol()
-        return DocTest(expression, answer_expression)
+        if answer_expression is None:
+            raise SyntaxError(f"`>>>` の次の行には正解が必要です", error_details(self.text, self.pos))
+        return NanakoDocTest(expression, answer_expression)
 
-    def parse_assignment(self) -> Assignment:
+    def parse_assignment(self) -> NanakoAssignment:
         """代入文をパース"""
         saved_pos = self.pos
 
@@ -730,11 +725,9 @@ class NanakoParser(object):
         if self.consume_string("を"):
             self.consume_whitespace()
             if self.consume_string("増やす"):
-                self.consume_eol()
-                return Increment(variable)
+                return NanakoIncrement(variable)
             if self.consume_string("減らす"):
-                self.consume_eol()
-                return Decrement(variable)
+                return NanakoDecrement(variable)
 
             expression = self.parse_expression()
             if expression is None:
@@ -743,23 +736,21 @@ class NanakoParser(object):
             # オプションの "とする"
             self.consume_whitespace()
             self.consume_string("とする")
-            self.consume_eol()
-            return Assignment(variable, expression)
+            return NanakoAssignment(variable, expression)
 
         # "="
-        if self.consume_string("="):
+        if self.consume("=", "＝"):
             self.consume_whitespace()
             expression = self.parse_expression()
             if expression is None:
                 raise SyntaxError(f"ここに何か忘れてません？", error_details(self.text, self.pos))
 
-            self.consume_eol()
-            return Assignment(variable, expression)
+            return NanakoAssignment(variable, expression)
                 
         self.pos = saved_pos
         return None
     
-    def parse_if_statement(self) -> IfStatement:
+    def parse_if_statement(self) -> NanakoIf:
         """if文をパース"""
         saved_pos = self.pos
 
@@ -768,13 +759,17 @@ class NanakoParser(object):
             return None
         self.consume_cma()
         
-        condition = self.parse_expression()
+        left = self.parse_expression()
+        if not left:
+            raise SyntaxError(f"何と比較したいの？", error_details(self.text, self.pos))
+
         if not self.consume_string("が"):
             raise SyntaxError(f"`が`が必要", error_details(self.text, self.pos))
 
         self.consume_cma()
-        if not self.consume("0", "０"):
-            raise SyntaxError(f"`0`としか比較できないよ", error_details(self.text, self.pos))
+        right = self.parse_expression()
+        if not right:
+            raise SyntaxError(f"何と比較したいの？", error_details(self.text, self.pos))
         self.consume_whitespace()
         
         # 比較演算子
@@ -792,16 +787,15 @@ class NanakoParser(object):
         then_block = self.parse_block()
         if then_block is None:
             raise SyntaxError("「もし、ならば」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
-        self.consume_eol()
         
         # else節（オプション）
         else_block = self.parse_else_statement()
-        return IfStatement(condition, operator, then_block, else_block)
+        return NanakoIf(left, operator, right, then_block, else_block)
     
-    def parse_else_statement(self) -> Block:
+    def parse_else_statement(self) -> NanakoBlock:
         """else文をパース"""
         saved_pos = self.pos
-        self.consume_whitespace()
+        self.consume_whitespace(include_newline=True)
         if not self.consume_string("そうでなければ"):
             self.pos = saved_pos
             return None
@@ -809,10 +803,9 @@ class NanakoParser(object):
         block = self.parse_block()
         if block is None:
             raise SyntaxError("「そうでなければ」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
-        self.consume_eol()
         return block
 
-    def parse_loop_statement(self) -> LoopStatement:
+    def parse_loop_statement(self) -> NanakoLoop:
         """ループ文をパース"""
         saved_pos = self.pos
         count = self.parse_expression()
@@ -829,20 +822,17 @@ class NanakoParser(object):
         body = self.parse_block()
         if body is None:
             raise SyntaxError("何をくり返すの？ { }で囲んでね！", error_details(self.text, self.pos))
-        self.consume_eol()
-        return LoopStatement(count, body)
+        return NanakoLoop(count, body)
     
-    def parse_return(self) -> ReturnStatement:
+    def parse_return(self) -> NanakoReturn:
         saved_pos = self.pos
         expression = self.parse_expression()
         if expression:
             if self.consume_string("が答え"):
-                self.consume_eol()
-                return ReturnStatement(expression)
+                return NanakoReturn(expression)
             self.consume_whitespace()
             if self.pos >= self.length or self.text[self.pos] == '\n':
-                self.consume_eol()
-                return ExpressionStatement(expression)
+                return NanakoExpression(expression)
         self.pos = saved_pos
         return None
     
@@ -859,7 +849,7 @@ class NanakoParser(object):
         if not expression:
             expression = self.parse_string()
         if not expression:
-            expression = self.parse_abs()
+            expression = self.parse_len()
         if not expression:
             expression = self.parse_minus()
         if not expression:
@@ -878,12 +868,14 @@ class NanakoParser(object):
                 raise SyntaxError("ななこは中置記法を使えないよ！", error_details(self.text, self.pos))
             expression.source = self.text
             expression.pos = saved_pos
+            expression.end_pos = self.pos
+            self.consume_whitespace()
             return expression
 
         return None
                     
 
-    def parse_integer(self) -> Number:
+    def parse_integer(self) -> NanakoNumber:
         """整数をパース"""
         saved_pos = self.pos
         if not self.consume_digit():
@@ -900,13 +892,12 @@ class NanakoParser(object):
         value_str = self.text[saved_pos:self.pos]
         try:
             value = int(value_str)
-            self.consume_whitespace()
-            return Number(value)
+            return NanakoNumber(value)
         except ValueError:
             self.pos = saved_pos
             return None
 
-    def parse_string(self) -> StringLiteral:
+    def parse_string(self) -> NanakoString:
         """文字列リテラルをパース"""
         saved_pos = self.pos
         
@@ -942,10 +933,9 @@ class NanakoParser(object):
             self.pos = saved_pos
             raise SyntaxError(f"閉じ`\"`を忘れないで", error_details(self.text, saved_pos))
 
-        self.consume_whitespace()
-        return StringLiteral(string_content)
+        return NanakoString(string_content)
 
-    def parse_minus(self) -> Minus:
+    def parse_minus(self) -> NanakoMinus:
         """整数をパース"""
         saved_pos = self.pos
         
@@ -957,10 +947,9 @@ class NanakoParser(object):
         element = self.parse_expression()
         if element is None:
             raise SyntaxError(f"`-`の次に何か忘れてない？", error_details(self.text, self.pos))
-        self.consume_whitespace()
-        return Minus(element)        
+        return NanakoMinus(element)        
 
-    def parse_abs(self) -> Abs:
+    def parse_len(self) -> NanakoLength:
         """絶対値または長さをパース"""
         saved_pos = self.pos
         if not self.consume("|", "｜"):
@@ -974,10 +963,9 @@ class NanakoParser(object):
         self.consume_whitespace()
         if not self.consume("|", "｜"):
             raise SyntaxError(f"閉じ`|`を忘れないで", error_details(self.text, self.pos))
-        self.consume_whitespace()
-        return Abs(element)
+        return NanakoLength(element)
 
-    def parse_function(self) -> Function:
+    def parse_function(self) -> NanakoFunction:
         """関数をパース"""
         saved_pos = self.pos
         # "λ" または "入力"
@@ -994,7 +982,7 @@ class NanakoParser(object):
             if identifier is None:
                 raise SyntaxError(f"変数名が必要", error_details(self.text, self.pos))
             if identifier in parameters:
-                raise SyntaxError(f"同じ変数名を使っているよ: '{identifier}'", error_details(self.text, self.pos))
+                raise SyntaxError(f"同じ変数名を使っているよ: ❌'{identifier}'", error_details(self.text, self.pos))
             parameters.append(identifier)
             self.consume_whitespace()
             if not self.consume(",", "、"):
@@ -1002,7 +990,7 @@ class NanakoParser(object):
             self.consume_whitespace()
         
         if len(parameters) == 0:
-            raise SyntaxError(f"少なくとも一つの変数名が必要", error_details(self.text, self.pos))
+            raise SyntaxError(f"ひとつは変数名が必要", error_details(self.text, self.pos))
 
         self.consume_whitespace()
         if not self.consume_string("に対し"):
@@ -1013,10 +1001,9 @@ class NanakoParser(object):
         
         if body is None:
             raise SyntaxError("関数の本体は？ { }で囲んでね！", error_details(self.text, self.pos))
-        self.consume_whitespace()
-        return Function(parameters, body)
+        return NanakoFunction(parameters, body)
     
-    def parse_funccall(self) -> FuncCall:
+    def parse_funccall(self) -> NanakoFuncCall:
         """関数呼び出しをパース"""
         saved_pos = self.pos
         name = self.parse_identifier()
@@ -1044,10 +1031,9 @@ class NanakoParser(object):
                 raise SyntaxError(f"閉じ`)`を忘れないで", error_details(self.text, self.pos))
             self.consume_whitespace()
 
-        self.consume_whitespace()
-        return FuncCall(name, arguments)
+        return NanakoFuncCall(name, arguments)
     
-    def parse_arraylist(self) -> ArrayList:
+    def parse_arraylist(self) -> NanakoArray:
         """配列をパース"""
         saved_pos = self.pos
          # "[" で始まる
@@ -1071,17 +1057,15 @@ class NanakoParser(object):
             if not self.consume(",", "、", "，"):
                 raise SyntaxError(f"閉じ`]`を忘れないで", error_details(self.text, saved_pos))
 
-        self.consume_whitespace()
-        return ArrayList(elements)
+        return NanakoArray(elements)
     
-    def parse_null(self) -> NullValue:
+    def parse_null(self) -> NanakoNull:
         """null値をパース"""
         if self.consume("null", "?", "？"):
-            self.consume_whitespace()
-            return NullValue()
+            return NanakoNull()
         return None
 
-    def parse_variable(self) -> Variable:
+    def parse_variable(self) -> NanakoVariable:
         """変数をパース"""
         name = self.parse_identifier()
         if name is None:
@@ -1089,19 +1073,18 @@ class NanakoParser(object):
 
         indices = []
         
-        self.consume_whitespace()
         while self.consume("[", "【"):
             self.consume_whitespace()
             index = self.parse_expression()
             indices.append(index)
             if not self.consume("]", "】"):
                 raise SyntaxError(f"閉じ `]`を忘れないで", error_details(self.text, self.pos))
-            self.consume_whitespace()
+
         if len(indices) == 0:
             indices = None
-        return Variable(name, indices)
+        return NanakoVariable(name, indices)
     
-    def parse_block(self) -> Block:
+    def parse_block(self) -> NanakoBlock:
         """ブロックをパース"""
         self.consume_whitespace()
         saved_pos = self.pos
@@ -1124,8 +1107,7 @@ class NanakoParser(object):
         if not found_closing_brace:
             raise SyntaxError("閉じ `}`を忘れないで", error_details(self.text, saved_pos))
 
-        self.consume_whitespace()
-        return Block(statements)
+        return NanakoBlock(statements)
     
     def parse_identifier(self) -> str:
         """識別子をパース"""

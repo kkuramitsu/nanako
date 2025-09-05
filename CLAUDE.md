@@ -27,7 +27,7 @@ Nanako (ななこ) is an educational programming language designed for the gener
 ### Running Programs
 ```bash
 python run_nanako.py examples/basic.nanako     # Execute a nanako file
-python run_nanako.py --interactive             # Interactive mode
+python run_nanako.py                           # Interactive mode
 python run_nanako.py data.csv program.nanako   # Load CSV data and run program
 ```
 
@@ -57,10 +57,66 @@ Strings are internally represented as arrays of Unicode code points, enabling ch
 The runtime includes operation counters (`increment_count`, `decrement_count`, `compare_count`) and call frame tracking for debugging and educational analysis.
 
 ## File Structure
-- `nanako.py`: Core interpreter implementation
+
+### Python Implementation
+- `nanako/nanako.py`: Core interpreter implementation
 - `run_nanako.py`: Command-line runner with file execution and interactive mode
 - `test_nanako.py`: Comprehensive test suite using pytest
-- `examples/`: Sample programs demonstrating language features
+- `setup.py` & `pyproject.toml`: PyPI packaging configuration (version 0.1.1)
+
+### JavaScript/Web Implementation
+- `html/nanako.js`: JavaScript port of Nanako interpreter with AST emit functionality
+- `html/nanako_editor.html`: Web-based Monaco Editor integration with:
+  - Real-time code execution and error highlighting
+  - Dark/light theme toggle
+  - Tabbed interface for execution results, JavaScript, and Python code generation
+  - Example file loading from `examples/` directory
+  - Auto-save and restore functionality for user code
+  - 50:50 editor/output layout with resizable panels
+
+### Example Programs
+- `examples/01basic.nanako`: Basic increment/decrement operations
+- `examples/02loop.nanako`: Loop control examples
+- `examples/03function.nanako`: Function definition and calls
+- `examples/04if.nanako`: Conditional statements
+- `examples/gcd.nanako`: Greatest common divisor algorithm
+- `examples/fibonacci.nanako`: Fibonacci sequence implementation
+
+### Documentation & Data
 - `data.csv`: Sample data file for CSV integration
 - `TUTORIAL.md`: Step-by-step language tutorial
 - `memo.txt`: Language specification notes
+- `CLAUDE.md`: This file - development guidance for Claude Code
+
+## Web Editor Features
+
+### AST Code Generation
+The JavaScript implementation includes `emit()` methods on all AST nodes that generate equivalent code in JavaScript or Python:
+- `ast.emit("js")`: Generates JavaScript code
+- `ast.emit("py")`: Generates Python code
+
+### Example File Integration
+The web editor can load actual example files from the `examples/` directory:
+- Dropdown selector loads real `.nanako` files
+- "🔄 マイコードに戻る" option restores user's saved code
+- Auto-save functionality preserves work in `localStorage`
+
+### Monaco Editor Integration
+- Full syntax highlighting for Nanako language
+- Error position tracking with line highlighting
+- Keyboard shortcuts (Ctrl+Enter to execute)
+- Fallback textarea editor for compatibility
+
+## Development Workflow
+
+### Making Changes to the Web Editor
+When updating the web implementation:
+1. Modify `html/nanako.js` for core language changes
+2. Update `html/nanako_editor.html` for UI/editor features
+3. Test with example files in `examples/` directory
+4. Ensure both Monaco Editor and fallback editor work correctly
+
+### Version Management
+- Python version is maintained in `nanako/__init__.py`, `setup.py`, and `pyproject.toml`
+- JavaScript version should be kept in sync with Python implementation
+- Both implementations share the same AST structure and language semantics

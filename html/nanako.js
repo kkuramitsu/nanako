@@ -1,6 +1,15 @@
 // Nanako (ななこ) - JavaScript Implementation
 // An educational programming language for the generative AI era.
 
+// Polyfill for Number.isInteger if not available
+if (!Number.isInteger) {
+    Number.isInteger = function(value) {
+        return typeof value === 'number' && 
+               isFinite(value) && 
+               Math.floor(value) === value;
+    };
+}
+
 // Utils
 function errorDetails(text, pos) {
     let line = 1;
@@ -38,6 +47,15 @@ class NanakoRuntime {
 
     popCallFrame() {
         this.callFrames.pop();
+    }
+
+    updateVariable(name, env, source, pos) {
+        // JavaScript版では何もしない
+    }
+
+    print(value, source, pos) {
+        const details = errorDetails(source, pos);
+        console.log(`>>> ${details.lineText.trim()}\n${value}`);
     }
 
     start(timeout = 30) {
@@ -97,7 +115,11 @@ class ASTNode {
 }
 
 // Statement classes
-class Statement extends ASTNode {}
+class Statement extends ASTNode {
+    semicolon(lang = "js") {
+        return lang === "py" ? "" : ";";
+    }
+}
 
 // Expression classes
 class Expression extends ASTNode {}
@@ -113,6 +135,17 @@ class Program extends Statement {
             statement.evaluate(runtime, env);
         }
     }
+
+    emit(lang = "js", indent = "") {
+        const lines = [];
+        for (const statement of this.statements) {
+            const code = statement.emit(lang, indent);
+            if (code.trim()) {
+                lines.push(code);
+            }
+        }
+        return lines.join('\n');
+    }
 }
 
 class Block extends Statement {
@@ -126,6 +159,17 @@ class Block extends Statement {
             statement.evaluate(runtime, env);
         }
     }
+
+    emit(lang = "js", indent = "") {
+        const lines = [];
+        for (const statement of this.statements) {
+            const code = statement.emit(lang, indent + "    ");
+            if (code.trim()) {
+                lines.push(code);
+            }
+        }
+        return lines.join('\n');
+    }
 }
 
 class NullValue extends Expression {
@@ -135,6 +179,10 @@ class NullValue extends Expression {
 
     evaluate(runtime, env) {
         return null;
+    }
+
+    emit(lang = "js", indent = "") {
+        return lang === "py" ? "None" : "null";
     }
 }
 
@@ -146,6 +194,10 @@ class Number extends Expression {
 
     evaluate(runtime, env) {
         return this.value;
+    }
+
+    emit(lang = "js", indent = "") {
+        return Number.isInteger(this.value) ? this.value.toString() : this.value.toString();
     }
 }
 
@@ -165,6 +217,13 @@ class Abs extends Expression {
         }
         return 0;
     }
+
+    emit(lang = "js", indent = "") {
+        if (lang === "py") {
+            return `len(${this.element.emit(lang, indent)})`;
+        }
+        return `(${this.element.emit(lang, indent)}).length`;
+    }
 }
 
 class Minus extends Expression {
@@ -176,9 +235,13 @@ class Minus extends Expression {
     evaluate(runtime, env) {
         const value = this.element.evaluate(runtime, env);
         if (typeof value !== 'number') {
-            throw new NanakoError("数値ではないよ", errorDetails(this.source, this.pos));
+            throw new NanakoError("マイナス記号（-）は数値にのみ使用できます。文字列や配列には使えません。", errorDetails(this.source, this.pos));
         }
         return -value;
+    }
+
+    emit(lang = "js", indent = "") {
+        return `-${this.element.emit(lang, indent)}`;
     }
 }
 
@@ -190,6 +253,11 @@ class ArrayList extends Expression {
 
     evaluate(runtime, env) {
         return this.elements.map(element => element.evaluate(runtime, env));
+    }
+
+    emit(lang = "js", indent = "") {
+        const elements = this.elements.map(element => element.emit(lang, indent));
+        return `[${elements.join(', ')}]`;
     }
 }
 
@@ -203,6 +271,14 @@ class StringLiteral extends Expression {
         // 文字列を文字コードの配列に変換
         return this.stringArray;
     }
+
+    emit(lang = "js", indent = "") {
+        const str = String.fromCharCode(...this.stringArray);
+        if (lang === "py") {
+            return `"${str.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+        }
+        return `"${str.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    }
 }
 
 class Function extends Expression {
@@ -215,6 +291,15 @@ class Function extends Expression {
     evaluate(runtime, env) {
         return this;
     }
+
+    emit(lang = "js", indent = "") {
+        const params = this.parameters.join(', ');
+        const body = this.body.emit(lang, indent + "    ");
+        if (lang === "py") {
+            return `def ${this.name}(${params}):\n${body}`;
+        }
+        return `function(${params}) {\n${body}\n${indent}}`;
+    }
 }
 
 class FuncCall extends Expression {
@@ -226,11 +311,11 @@ class FuncCall extends Expression {
 
     evaluate(runtime, env) {
         if (!(this.name in env)) {
-            throw new NanakoError(`未定義の関数 '${this.name}' です`, errorDetails(this.source, this.pos));
+            throw new NanakoError(`関数 '${this.name}' が見つかりません。関数を呼び出す前に定義してください。`, errorDetails(this.source, this.pos));
         }
         const func = env[this.name];
         if (func.parameters.length !== this.arguments.length) {
-            throw new NanakoError("引数の数がパラメータの数と一致しません", errorDetails(this.source, this.pos));
+            throw new NanakoError(`関数 '${this.name}' の引数の数が間違っています。${func.parameters.length}個の引数が必要ですが、${this.arguments.length}個渡されました。`, errorDetails(this.source, this.pos));
         }
 
         const newEnv = { ...env };
@@ -253,6 +338,11 @@ class FuncCall extends Expression {
         runtime.popCallFrame();
         return null;
     }
+
+    emit(lang = "js", indent = "") {
+        const args = this.arguments.map(arg => arg.emit(lang, indent)).join(', ');
+        return `${this.name}(${args})`;
+    }
 }
 
 class Variable extends Expression {
@@ -264,7 +354,7 @@ class Variable extends Expression {
 
     getValueIndex(runtime, env) {
         if (!(this.name in env)) {
-            throw new NanakoError(`未定義の変数 '${this.name}' です`, errorDetails(this.source, this.pos));
+            throw new NanakoError(`変数 '${this.name}' が定義されていません。変数を使う前に値を代入してください。`, errorDetails(this.source, this.pos));
         }
 
         let value = env[this.name];
@@ -272,7 +362,7 @@ class Variable extends Expression {
             for (let i = 0; i < this.indices.length; i++) {
                 const index = this.indices[i].evaluate(runtime, env);
                 if (typeof index !== 'number' && index !== null) {
-                    throw new NanakoError("配列の添え字は数にして", errorDetails(this.indices[i].source, this.indices[i].pos));
+                    throw new NanakoError("配列の添え字には数値を使ってください。文字列や他の型は使えません。", errorDetails(this.indices[i].source, this.indices[i].pos));
                 }
                 if (i === this.indices.length - 1) {
                     return { value, index: Math.floor(index) };
@@ -289,16 +379,28 @@ class Variable extends Expression {
             return value;
         }
         if (!Array.isArray(value)) {
-            throw new NanakoError("これは配列ではありません", errorDetails(this.source, this.pos));
+            throw new NanakoError(`変数 '${this.name}' は配列ではありません。配列の要素にアクセスするには、まず配列を作成してください。`, errorDetails(this.source, this.pos));
         }
         if (index === null) {
             // ランダムに選ぶ
             return value[Math.floor(Math.random() * value.length)];
         }
-        if (index >= value.length) {
-            throw new NanakoError(`この配列の添え字は0から${value.length - 1}の間ですよ`, errorDetails(this.source, this.pos));
+        if (index >= value.length || index < 0) {
+            throw new NanakoError(`配列の添え字が範囲外です。この配列の要素は0番から${value.length - 1}番まです。`, errorDetails(this.source, this.pos));
         }
         return value[index];
+    }
+
+    emit(lang = "js", indent = "") {
+        if (!this.indices || this.indices.length === 0) {
+            return this.name;
+        }
+        const indices = [];
+        for (const index of this.indices) {
+            const indexCode = index.emit(lang, indent);
+            indices.push(`[${indexCode === "null" || indexCode === "None" ? "null" : indexCode}]`);
+        }
+        return this.name + indices.join('');
     }
 }
 
@@ -324,6 +426,15 @@ class Assignment extends Statement {
             varValue[index] = value;
         }
     }
+
+    emit(lang = "js", indent = "") {
+        const variable = this.variable.emit(lang, indent);
+        const expression = this.expression.emit(lang, indent);
+        if (variable.endsWith('[null]') || variable.endsWith('[None]')) {
+            return `${indent}${variable.replace(/\[null\]$|\[None\]$/, '')}.push(${expression})${this.semicolon(lang)}`;
+        }
+        return `${indent}${variable} = ${expression}${this.semicolon(lang)}`;
+    }
 }
 
 class Increment extends Statement {
@@ -336,16 +447,21 @@ class Increment extends Statement {
         const { value: varValue, index } = this.variable.getValueIndex(runtime, env);
         if (index === -1) {
             if (typeof env[this.variable.name] !== 'number') {
-                throw new NanakoError(`\`${this.variable.name}\`は数値じゃないから増やせないよ`, errorDetails(this.source, this.pos));
+                throw new NanakoError(`変数 '${this.variable.name}' は数値ではないので増やすことができません。数値を代入してから増やしてください。`, errorDetails(this.source, this.pos));
             }
             env[this.variable.name] += 1;
         } else {
             if (typeof varValue[index] !== 'number') {
-                throw new NanakoError("数値じゃないから増やせないよ", errorDetails(this.source, this.pos));
+                throw new NanakoError("配列の要素が数値ではないので増やすことができません。数値の要素のみ増やせます。", errorDetails(this.source, this.pos));
             }
             varValue[index] += 1;
         }
         runtime.incrementCount += 1;
+    }
+
+    emit(lang = "js", indent = "") {
+        const variable = this.variable.emit(lang, indent);
+        return `${indent}${variable} += 1${this.semicolon(lang)}`;
     }
 }
 
@@ -359,52 +475,89 @@ class Decrement extends Statement {
         const { value: varValue, index } = this.variable.getValueIndex(runtime, env);
         if (index === -1) {
             if (typeof env[this.variable.name] !== 'number') {
-                throw new NanakoError(`\`${this.variable.name}\`は数値じゃないから減らせないよ`, errorDetails(this.source, this.pos));
+                throw new NanakoError(`変数 '${this.variable.name}' は数値ではないので減らすことができません。数値を代入してから減らしてください。`, errorDetails(this.source, this.pos));
             }
             env[this.variable.name] -= 1;
         } else {
             if (typeof varValue[index] !== 'number') {
-                throw new NanakoError("数値じゃないから減らせないよ", errorDetails(this.source, this.pos));
+                throw new NanakoError("配列の要素が数値ではないので減らすことができません。数値の要素のみ減らせます。", errorDetails(this.source, this.pos));
             }
             varValue[index] -= 1;
         }
         runtime.decrementCount += 1;
     }
+
+    emit(lang = "js", indent = "") {
+        const variable = this.variable.emit(lang, indent);
+        return `${indent}${variable} -= 1${this.semicolon(lang)}`;
+    }
 }
 
 class IfStatement extends Statement {
-    constructor(condition, operator, thenBlock, elseBlock = null, source = "", pos = 0) {
+    constructor(left, operator, right, thenBlock, elseBlock = null, source = "", pos = 0) {
         super(source, pos);
-        this.condition = condition;
+        this.left = left;
         this.operator = operator; // "以上", "以下", "より大きい", "より小さい", "以外", "未満", ""
+        this.right = right;
         this.thenBlock = thenBlock;
         this.elseBlock = elseBlock;
     }
 
     evaluate(runtime, env) {
-        const condValue = this.condition.evaluate(runtime, env);
-        const baseValue = 0;
+        const leftValue = this.left.evaluate(runtime, env);
+        const rightValue = this.right.evaluate(runtime, env);
         let result;
         if (this.operator === "以上") {
-            result = condValue >= baseValue;
+            result = leftValue >= rightValue;
         } else if (this.operator === "以下") {
-            result = condValue <= baseValue;
+            result = leftValue <= rightValue;
         } else if (this.operator === "より大きい") {
-            result = condValue > baseValue;
+            result = leftValue > rightValue;
         } else if (this.operator === "より小さい") {
-            result = condValue < baseValue;
+            result = leftValue < rightValue;
         } else if (this.operator === "以外") {
-            result = condValue !== baseValue;
+            result = leftValue !== rightValue;
         } else if (this.operator === "未満") {
-            result = condValue < baseValue;
+            result = leftValue < rightValue;
         } else {
-            result = condValue === baseValue;
+            result = leftValue === rightValue;
         }
         runtime.compareCount += 1;
         if (result) {
             this.thenBlock.evaluate(runtime, env);
         } else if (this.elseBlock) {
             this.elseBlock.evaluate(runtime, env);
+        }
+    }
+
+    emit(lang = "js", indent = "") {
+        const left = this.left.emit(lang, indent);
+        const right = this.right.emit(lang, indent);
+        let op;
+        if (this.operator === "以上") op = ">=";
+        else if (this.operator === "以下") op = "<=";
+        else if (this.operator === "より大きい") op = ">";
+        else if (this.operator === "より小さい" || this.operator === "未満") op = "<";
+        else if (this.operator === "以外") op = "!=";
+        else op = "==";
+
+        const condition = `${left} ${op} ${right}`;
+        const thenBody = this.thenBlock.emit(lang, indent + "    ");
+        
+        if (lang === "py") {
+            let result = `${indent}if ${condition}:\n${thenBody}`;
+            if (this.elseBlock) {
+                const elseBody = this.elseBlock.emit(lang, indent + "    ");
+                result += `\n${indent}else:\n${elseBody}`;
+            }
+            return result;
+        } else {
+            let result = `${indent}if (${condition}) {\n${thenBody}\n${indent}}`;
+            if (this.elseBlock) {
+                const elseBody = this.elseBlock.emit(lang, indent + "    ");
+                result += ` else {\n${elseBody}\n${indent}}`;
+            }
+            return result;
         }
     }
 }
@@ -433,6 +586,17 @@ class LoopStatement extends Statement {
             this.body.evaluate(runtime, env);
         }
     }
+
+    emit(lang = "js", indent = "") {
+        const count = this.count.emit(lang, indent);
+        const body = this.body.emit(lang, indent + "    ");
+        
+        if (lang === "py") {
+            return `${indent}for _ in range(${count}):\n${body}`;
+        } else {
+            return `${indent}for (let i = 0; i < ${count}; i++) {\n${body}\n${indent}}`;
+        }
+    }
 }
 
 class ReturnStatement extends Statement {
@@ -444,6 +608,33 @@ class ReturnStatement extends Statement {
     evaluate(runtime, env) {
         const value = this.expression.evaluate(runtime, env);
         throw new ReturnBreakException(value);
+    }
+
+    emit(lang = "js", indent = "") {
+        const expr = this.expression.emit(lang, indent);
+        return `${indent}return ${expr}${this.semicolon(lang)}`;
+    }
+}
+
+class ExpressionStatement extends Statement {
+    constructor(expression, source = "", pos = 0) {
+        super(source, pos);
+        this.expression = expression;
+    }
+
+    evaluate(runtime, env) {
+        const value = this.expression.evaluate(runtime, env);
+        runtime.print(value, this.source, this.pos);
+        return value;
+    }
+
+    emit(lang = "js", indent = "") {
+        const expr = this.expression.emit(lang, indent);
+        if (lang === "py") {
+            return `${indent}print(${expr})`;
+        } else {
+            return `${indent}console.log(${expr})${this.semicolon(lang)}`;
+        }
     }
 }
 
@@ -461,6 +652,16 @@ class DocTest extends Statement {
             throw new NanakoError(`テストに失敗: ${value}`, errorDetails(this.source, this.pos));
         }
     }
+
+    emit(lang = "js", indent = "") {
+        const expr = this.expression.emit(lang, indent);
+        const answer = this.answer.emit(lang, indent);
+        if (lang === "py") {
+            return `${indent}assert ${expr} == ${answer}`;
+        } else {
+            return `${indent}console.assert(${expr} === ${answer})${this.semicolon(lang)}`;
+        }
+    }
 }
 
 class NanakoParser {
@@ -471,10 +672,18 @@ class NanakoParser {
     }
 
     parse(text) {
-        this.text = text;
+        this.text = this.normalize(text);
         this.pos = 0;
-        this.length = text.length;
+        this.length = this.text.length;
         return this.parseProgram();
+    }
+
+    normalize(text) {
+        // 全角文字を半角に変換
+        text = text.replace(/"/g, '"').replace(/"/g, '"');
+        return text.replace(/[０-９Ａ-Ｚａ-ｚ]/g, function(match) {
+            return String.fromCharCode(match.charCodeAt(0) - 0xFEE0);
+        });
     }
 
     errorDetails(pos) {
@@ -611,15 +820,13 @@ class NanakoParser {
         }
         this.consumeCma();
 
-        const condition = this.parseExpression();
+        const left = this.parseExpression();
         if (!this.consumeString("が")) {
             throw new SyntaxError("Expected 'が'");
         }
 
         this.consumeCma();
-        if (!this.consumeString("0")) {
-            throw new SyntaxError("Expected '0'");
-        }
+        const right = this.parseExpression();
         this.consumeWhitespace();
 
         // 比較演算子
@@ -645,7 +852,7 @@ class NanakoParser {
 
         // else節（オプション）
         const elseBlock = this.parseElseStatement();
-        return new IfStatement(condition, operator, thenBlock, elseBlock);
+        return new IfStatement(left, operator, right, thenBlock, elseBlock);
     }
 
     parseElseStatement() {
@@ -1116,7 +1323,7 @@ class NanakoParser {
     }
 
     consumeCma() {
-        this.consumeString("、");
+        this.consume("、", "，", ",");
         this.consumeWhitespace();
     }
 

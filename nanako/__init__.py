@@ -12,7 +12,7 @@ from .nanako import (
     ReturnBreakException,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 __author__ = "Nanako Project"
 __description__ = "An educational programming language for the generative AI era"
 
