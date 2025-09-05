@@ -8,8 +8,8 @@ through constrained computation with Japanese syntax.
 from .nanako import (
     NanakoRuntime,
     NanakoParser,
+    NanakoArray,
     NanakoError,
-    ReturnBreakException,
 )
 
 __version__ = "0.1.2"
@@ -20,5 +20,5 @@ __all__ = [
     'NanakoRuntime',
     'NanakoParser', 
     'NanakoError',
-    'ReturnBreakException',
+    'NanakoArray',
 ]

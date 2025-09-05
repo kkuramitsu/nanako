@@ -3,26 +3,6 @@ from typing import List, Optional, Dict, Any
 from abc import ABC, abstractmethod
 import time
 
-## utils 
-
-def error_details(text, pos):
-    line = 1
-    col = 1
-    start = 0
-    for i, char in enumerate(text):
-        if i == pos:
-            break
-        if char == '\n':
-            line += 1
-            col = 1
-            start = i + 1
-        else:
-            col += 1
-    end = text.find('\n', start)
-    if end == -1:
-        end = len(text)
-    return text, line, col, text[start:end]
-
 ## Runtime
 
 class NanakoRuntime(object):
@@ -70,11 +50,108 @@ class NanakoRuntime(object):
     def exec(self, code, env=None, timeout=30):
         if env is None:
             env = {}
+        else:
+            env = transform_array(env)
         parser = NanakoParser()
         program = parser.parse(code)
         self.start(timeout)
         program.evaluate(self, env)
         return env
+    
+    def transform_array(self, value: Any):
+        return transform_array(value)
+
+    def stringfy_as_json(self, env:Dict[str, Any]):
+        return stringfy_as_json(env)
+
+
+class NanakoArray(object):
+    elements: List[Any]
+    is_string_view: bool
+
+    def __init__(self, values: Any):
+        if isinstance(values, str):
+            self.elements = [ord(ch) for ch in values]
+            self.is_string_view = True
+        else:
+            self.elements = [transform_array(v) for v in values]
+            self.is_string_view = False
+
+
+    def emit(self, lang="js", indent:str = "") -> str:
+        if self.is_string_view:
+            chars = []
+            for code in self.elements:
+                chars.append(chr(code))
+                content = ''.join(chars).replace('\\', '\\\\').replace('\n', '\\n').replace('\t', '\\t').replace('"', '\\"')
+            return '"' + content + '"'
+        if len(self.elements) == 0:
+            return "[]"
+        if isinstance(self.elements[0], NanakoArray):
+            lines = ["["]
+            for element in self.elements:
+                line = element.emit(lang, indent + "  ")
+                lines.append(f"    {indent}{line},")
+            lines[-1] = lines[-1][:-1]
+            lines.append(f"{indent}]")
+            return '\n'.join(lines)
+        elements = []
+        for element in self.elements:
+            elements.append(str(element))
+        return "[" + ", ".join(elements) + "]"
+
+    def __str__(self):
+        return self.emit("js", "")
+
+    def __repr__(self):
+        return self.emit("js", "")
+
+def transform_array(values):
+    if isinstance(values, (list, tuple)):
+        return NanakoArray(values)
+    if isinstance(values, str):
+        return NanakoArray(str)
+    if isinstance(values, dict):
+        for key, value in values.items():
+            values[key] = transform_array(value)
+        return values
+    return values
+
+def stringfy_as_json(env: Dict[str, Any]):
+    lines = ["{"]
+    indent = "    "
+    for key, value in env.items():
+        key = f"{indent}\"{key}\":"
+        if isinstance(value, (int, float)):
+            lines.append(f"{key} {int(value)},")
+        if isinstance(value, NanakoArray):
+            content = value.emit("js", indent)
+            lines.append(f"{key} {content},")
+        if value is None:
+            lines.append(f"{key} null,")
+    if len(lines)>1:
+        lines[-1] = lines[-1][:-1]
+    lines.append("}")
+    return '\n'.join(lines)
+
+def error_details(text, pos):
+    line = 1
+    col = 1
+    start = 0
+    for i, char in enumerate(text):
+        if i == pos:
+            break
+        if char == '\n':
+            line += 1
+            col = 1
+            start = i + 1
+        else:
+            col += 1
+    end = text.find('\n', start)
+    if end == -1:
+        end = len(text)
+    return text, line, col, text[start:end]
+
 
 class NanakoError(SyntaxError):
     def __init__(self, message: str, details):
@@ -86,7 +163,6 @@ class ReturnBreakException(RuntimeError):
         self.value = value
 
 
-# AST Node Classes
 @dataclass
 class ASTNode(ABC):
     source: str
@@ -109,9 +185,9 @@ class ASTNode(ABC):
     def emit(self, lang="js", indent:str = "") -> str:
         pass
 
-# Statement classes
+# StatementNode classes
 @dataclass
-class Statement(ASTNode):
+class StatementNode(ASTNode):
     def __init__(self):
         super().__init__()
 
@@ -120,9 +196,9 @@ class Statement(ASTNode):
             return ""
         return ";"
 
-# Expression classes
+# ExpressionNode classes
 @dataclass
-class Expression(ASTNode):
+class ExpressionNode(ASTNode):
 
     def __init__(self):
         super().__init__()
@@ -130,10 +206,10 @@ class Expression(ASTNode):
     pass
 
 @dataclass
-class Program(Statement):
-    statements: List[Statement]
+class ProgramNode(StatementNode):
+    statements: List[StatementNode]
 
-    def __init__(self, statements: List[Statement]):
+    def __init__(self, statements: List[StatementNode]):
         super().__init__()
         self.statements = statements
 
@@ -148,10 +224,10 @@ class Program(Statement):
         return "\n".join(lines)
 
 @dataclass
-class NanakoBlock(Statement):
-    statements: List[Statement]
+class BlockNode(StatementNode):
+    statements: List[StatementNode]
 
-    def __init__(self, statements: List[Statement]):
+    def __init__(self, statements: List[StatementNode]):
         super().__init__()
         self.statements = statements
 
@@ -172,7 +248,7 @@ class NanakoBlock(Statement):
 
 
 @dataclass
-class NanakoNull(Expression):
+class NullNode(ExpressionNode):
     
     def __init__(self):
         super().__init__()
@@ -186,7 +262,7 @@ class NanakoNull(Expression):
         return "null"
 
 @dataclass
-class NanakoNumber(Expression):
+class NumberNode(ExpressionNode):
     value: float
 
     def __init__(self, value: float = 0.0):
@@ -201,20 +277,18 @@ class NanakoNumber(Expression):
 
 
 @dataclass
-class NanakoLength(Expression):
-    element: Expression
+class LenNode(ExpressionNode):
+    element: ExpressionNode
 
-    def __init__(self, element: Expression):
+    def __init__(self, element: ExpressionNode):
         super().__init__()
         self.element = element
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.element.evaluate(runtime, env)
-        if isinstance(value, int):
-            return abs(value)
-        if isinstance(value, list):
-            return len(value)
-        return 0
+        if isinstance(value, NanakoArray):
+            return len(value.elements)
+        raise NanakoError(f"配列じゃないね？ ❌{value}", self.element.error_details())
 
     def emit(self, lang="js", indent:str = "") -> str:
         if lang == "py":
@@ -222,10 +296,10 @@ class NanakoLength(Expression):
         return "(" + self.element.emit(lang, indent) + ").length"
 
 @dataclass
-class NanakoMinus(Expression):
-    element: Expression
+class MinusNode(ExpressionNode):
+    element: ExpressionNode
 
-    def __init__(self, element: Expression):
+    def __init__(self, element: ExpressionNode):
         super().__init__()
         self.element = element
 
@@ -239,15 +313,16 @@ class NanakoMinus(Expression):
         return f"-{self.element.emit(lang, indent)}"
 
 @dataclass
-class NanakoArray(Expression):
-    elements: List[Expression]
+class ArrayNode(ExpressionNode):
+    elements: List[Any] 
 
-    def __init__(self, elements: List[Expression]):
+    def __init__(self, elements: List[Any]):
         super().__init__()
         self.elements = elements
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
-        return [element.evaluate(runtime, env) for element in self.elements]
+        array_content = [element.evaluate(runtime, env) for element in self.elements]
+        return NanakoArray(array_content)
 
     def emit(self, lang="js", indent:str = "") -> str:
         elements = []
@@ -256,30 +331,27 @@ class NanakoArray(Expression):
         return "[" + ", ".join(elements) + "]"
 
 @dataclass
-class NanakoString(Expression):
+class StringNode(ExpressionNode):
+    value: List[Any] 
 
-    def __init__(self, string_array: List[int]):
+    def __init__(self, content: str):
         super().__init__()
-        self.string_array = string_array
+        self.value = NanakoArray(content)
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
-        # 文字列を文字コードの配列に変換
-        return self.string_array
+        return self.value
 
     def emit(self, lang="js", indent:str = "") -> str:
-        chars = []
-        for code in self.string_array:
-            chars.append(chr(code))
-        content = ''.join(chars).replace('\\', '\\\\').replace('\n', '\\n').replace('\t', '\\t').replace('"', '\\"')
-        return '"' + content + '"'
+        return self.value.emit(lang, indent)
+
 
 @dataclass
-class NanakoFunction(Expression):
+class FunctionNode(ExpressionNode):
     name: str
     parameters: List[str]
-    body: NanakoBlock
+    body: BlockNode
 
-    def __init__(self, parameters: List[str], body: NanakoBlock):
+    def __init__(self, parameters: List[str], body: BlockNode):
         super().__init__()
         self.name = "<lambda>"
         self.parameters = parameters
@@ -296,11 +368,11 @@ class NanakoFunction(Expression):
         return f"function ({params}) {{\n{body}"
 
 @dataclass
-class NanakoFuncCall(Expression):
+class FuncCallNode(ExpressionNode):
     name: str
-    arguments: List[Expression]
+    arguments: List[ExpressionNode]
 
-    def __init__(self, name: str, arguments: List[Expression]):
+    def __init__(self, name: str, arguments: List[ExpressionNode]):
         super().__init__()
         self.name = name
         self.arguments = arguments
@@ -333,11 +405,11 @@ class NanakoFuncCall(Expression):
         return f"{self.name}({params})"
 
 @dataclass
-class NanakoVariable(Expression):
+class VariableNode(ExpressionNode):
     name: str
-    indices: List[Expression]  # 配列アクセス用
+    indices: List[ExpressionNode]  # 配列アクセス用
 
-    def __init__(self, name: str, indices: Optional[List[Expression]] = None):
+    def __init__(self, name: str, indices: Optional[List[ExpressionNode]] = None):
         super().__init__()
         self.name = name
         self.indices = indices
@@ -352,15 +424,15 @@ class NanakoVariable(Expression):
         
         array = env[self.name]
         for index in self.indices:
-            if not isinstance(array, list):
+            if not isinstance(array, NanakoArray):
                 raise NanakoError(f"配列ではありません: ❌{array}", self.error_details())
             index_value = index.evaluate(runtime, env)
             if isinstance(index_value, (int, float)):
                 index_value = int(index_value)
-                if 0<= index_value < len(array):
-                    array = array[index_value]
+                if 0<= index_value < len(array.elements):
+                    array = array.elements[index_value]
                     continue
-            raise NanakoError(f"配列の添え字は0から{len(array)-1}の間ですよ: ❌{index_value}", index.error_details())
+            raise NanakoError(f"配列の添え字は0から{len(array.elements)-1}の間ですよ: ❌{index_value}", index.error_details())
         return array
 
     def evaluate_with(self, runtime: NanakoRuntime, env: Dict[str, Any], value):
@@ -374,23 +446,23 @@ class NanakoVariable(Expression):
             raise NanakoError(f"知らない変数だよ！ '{self.name}'", self.error_details())
 
         for i, index in enumerate(self.indices):
-            if not isinstance(array, list):
+            if not isinstance(array, NanakoArray):
                 raise NanakoError(f"配列ではありません: ❌{array}", self.error_details())
             index_value = index.evaluate(runtime, env)
             if isinstance(index_value, (int, float)):
                 index_value = int(index_value)
-                if index_value < 0 or index_value >= len(array):
+                if index_value < 0 or index_value >= len(array.elements):
                     break
                 if i == len(self.indices) - 1:
-                    array[index_value] = value
+                    array.elements[index_value] = value
                     return None
-                array = array[index_value]
+                array = array.elements[index_value]
             elif index_value is None:
                 if i == len(self.indices) - 1:
-                    array.append(value)
+                    array.elements.append(value)
                     return None
             break
-        raise NanakoError(f"配列の添え字は0から{len(array)-1}の間ですよ: ❌{index_value}", index.error_details())
+        raise NanakoError(f"配列の添え字は0から{len(array.elements)-1}の間ですよ: ❌{index_value}", index.error_details())
 
     def emit(self, lang="js", indent:str = "") -> str:
         if self.indices is None or len(self.indices) == 0:
@@ -402,15 +474,15 @@ class NanakoVariable(Expression):
         return f"{self.name}{indices_str}"
 
 @dataclass
-class NanakoAssignment(Statement):
-    variable: NanakoVariable
-    expression: Expression
+class AssignmentNode(StatementNode):
+    variable: VariableNode
+    expression: ExpressionNode
 
-    def __init__(self, variable: NanakoVariable, expression: Expression):
+    def __init__(self, variable: VariableNode, expression: ExpressionNode):
         super().__init__()
         self.variable = variable
         self.expression = expression
-        if isinstance(expression, NanakoFunction):
+        if isinstance(expression, FunctionNode):
             expression.name = variable.name
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
@@ -425,15 +497,15 @@ class NanakoAssignment(Statement):
                 return f'{indent}{variable[:-6]}.append({expression})'
             if lang == "js":
                 return f'{indent}{variable[:-6]}.push({expression}){self.semicolon(lang)}'            
-        if lang == "py" and isinstance(self.expression, NanakoFunction):
+        if lang == "py" and isinstance(self.expression, FunctionNode):
             return f"{indent}{expression}"
         return f"{indent}{variable} = {expression}{self.semicolon(lang)}"
 
 @dataclass
-class NanakoIncrement(Statement):
-    variable: NanakoVariable
+class IncrementNode(StatementNode):
+    variable: VariableNode
 
-    def __init__(self, variable: NanakoVariable):
+    def __init__(self, variable: VariableNode):
         super().__init__()
         self.variable = variable
 
@@ -449,10 +521,10 @@ class NanakoIncrement(Statement):
         return f"{indent}{variable} += 1{self.semicolon(lang)}"
 
 @dataclass
-class NanakoDecrement(Statement):
-    variable: NanakoVariable
+class DecrementNode(StatementNode):
+    variable: VariableNode
 
-    def __init__(self, variable: NanakoVariable):
+    def __init__(self, variable: VariableNode):
         super().__init__()
         self.variable = variable
 
@@ -467,16 +539,15 @@ class NanakoDecrement(Statement):
         variable = self.variable.emit(lang, indent)
         return f"{indent}{variable} -= 1{self.semicolon(lang)}"
 
-
 @dataclass
-class NanakoIf(Statement):
-    left: Expression
+class IfNode(StatementNode):
+    left: ExpressionNode
     operator: str  # "以上", "以下", "より大きい", "より小さい", "以外", "未満", ""
-    right: Expression
-    then_block: NanakoBlock
-    else_block: Optional[NanakoBlock] = None
+    right: ExpressionNode
+    then_block: BlockNode
+    else_block: Optional[BlockNode] = None
 
-    def __init__(self, left: Expression, operator: str, right: Expression, then_block: NanakoBlock, else_block: Optional[NanakoBlock] = None):
+    def __init__(self, left: ExpressionNode, operator: str, right: ExpressionNode, then_block: BlockNode, else_block: Optional[BlockNode] = None):
         super().__init__()
         self.left = left
         self.operator = operator
@@ -539,11 +610,11 @@ class NanakoIf(Statement):
         return "\n".join(lines)
 
 @dataclass
-class NanakoLoop(Statement):
-    count: Expression
-    body: NanakoBlock
+class LoopNode(StatementNode):
+    count: ExpressionNode
+    body: BlockNode
 
-    def __init__(self, count: Expression, body: NanakoBlock):
+    def __init__(self, count: ExpressionNode, body: BlockNode):
         super().__init__()
         self.count = count
         self.body = body
@@ -565,7 +636,7 @@ class NanakoLoop(Statement):
 
     def emit(self, lang="js", indent:str = "") -> str:
         lines = []
-        if isinstance(self.count, NanakoNull):
+        if isinstance(self.count, NullNode):
             if lang == "py":
                 lines.append(f"{indent}while True:")
             else:
@@ -584,10 +655,10 @@ class NanakoLoop(Statement):
 
 
 @dataclass
-class NanakoReturn(Statement):
-    expression: Expression
+class ReturnNode(StatementNode):
+    expression: ExpressionNode
 
-    def __init__(self, expression: Expression):
+    def __init__(self, expression: ExpressionNode):
         super().__init__()
         self.expression = expression
 
@@ -599,10 +670,10 @@ class NanakoReturn(Statement):
         return f"{indent}return {self.expression.emit(lang, indent)}{self.semicolon(lang)}"
 
 @dataclass
-class NanakoExpression(Statement):
-    expression: Expression
+class ExpressionStatementNode(StatementNode):
+    expression: ExpressionNode
 
-    def __init__(self, expression: Expression):
+    def __init__(self, expression: ExpressionNode):
         super().__init__()
         self.expression = expression
 
@@ -615,11 +686,11 @@ class NanakoExpression(Statement):
         return f"{indent}{self.expression.emit(lang, indent)}{self}"
 
 @dataclass
-class NanakoDocTest(Statement):
-    expression: Expression
-    answer: Expression
+class TestNode(StatementNode):
+    expression: ExpressionNode
+    answer: ExpressionNode
 
-    def __init__(self, expression: Expression, answer: Expression):
+    def __init__(self, expression: ExpressionNode, answer: ExpressionNode):
         super().__init__()
         self.expression = expression
         self.answer = answer
@@ -639,7 +710,7 @@ class NanakoDocTest(Statement):
 
 class NanakoParser(object):
     
-    def parse(self, text) -> Program:
+    def parse(self, text) -> ProgramNode:
         self.text = self.normalize(text)
         self.pos = 0
         self.length = len(text)
@@ -653,7 +724,7 @@ class NanakoParser(object):
     def error_details(self, pos):
         return error_details(self.text, pos)
 
-    def parse_program(self) -> Program:
+    def parse_program(self) -> ProgramNode:
         statements = []
         self.consume_whitespace(include_newline=True)
         while self.pos < self.length:
@@ -665,9 +736,9 @@ class NanakoParser(object):
             except SyntaxError as e:
                 print(e)
                 self.consume_until_eol()
-        return Program(statements)
+        return ProgramNode(statements)
     
-    def parse_statement(self, text = None) -> Optional[Statement]:
+    def parse_statement(self, text = None) -> Optional[StatementNode]:
         if text is not None:
             self.text = self.normalize(text)
             self.pos = 0
@@ -694,7 +765,7 @@ class NanakoParser(object):
             return stmt
         raise SyntaxError(f"ななこの知らない書き方！", error_details(self.text, saved_pos))
 
-    def parse_doctest(self) -> Statement:
+    def parse_doctest(self) -> StatementNode:
         """ドキュテストをパース"""
         saved_pos = self.pos
         if not self.consume_string(">>>"):
@@ -709,9 +780,9 @@ class NanakoParser(object):
         answer_expression = self.parse_expression()
         if answer_expression is None:
             raise SyntaxError(f"`>>>` の次の行には正解が必要です", error_details(self.text, self.pos))
-        return NanakoDocTest(expression, answer_expression)
+        return TestNode(expression, answer_expression)
 
-    def parse_assignment(self) -> NanakoAssignment:
+    def parse_assignment(self) -> AssignmentNode:
         """代入文をパース"""
         saved_pos = self.pos
 
@@ -725,9 +796,9 @@ class NanakoParser(object):
         if self.consume_string("を"):
             self.consume_whitespace()
             if self.consume_string("増やす"):
-                return NanakoIncrement(variable)
+                return IncrementNode(variable)
             if self.consume_string("減らす"):
-                return NanakoDecrement(variable)
+                return DecrementNode(variable)
 
             expression = self.parse_expression()
             if expression is None:
@@ -736,7 +807,7 @@ class NanakoParser(object):
             # オプションの "とする"
             self.consume_whitespace()
             self.consume_string("とする")
-            return NanakoAssignment(variable, expression)
+            return AssignmentNode(variable, expression)
 
         # "="
         if self.consume("=", "＝"):
@@ -745,12 +816,12 @@ class NanakoParser(object):
             if expression is None:
                 raise SyntaxError(f"ここに何か忘れてません？", error_details(self.text, self.pos))
 
-            return NanakoAssignment(variable, expression)
+            return AssignmentNode(variable, expression)
                 
         self.pos = saved_pos
         return None
     
-    def parse_if_statement(self) -> NanakoIf:
+    def parse_if_statement(self) -> IfNode:
         """if文をパース"""
         saved_pos = self.pos
 
@@ -790,9 +861,9 @@ class NanakoParser(object):
         
         # else節（オプション）
         else_block = self.parse_else_statement()
-        return NanakoIf(left, operator, right, then_block, else_block)
+        return IfNode(left, operator, right, then_block, else_block)
     
-    def parse_else_statement(self) -> NanakoBlock:
+    def parse_else_statement(self) -> BlockNode:
         """else文をパース"""
         saved_pos = self.pos
         self.consume_whitespace(include_newline=True)
@@ -805,7 +876,7 @@ class NanakoParser(object):
             raise SyntaxError("「そうでなければ」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
         return block
 
-    def parse_loop_statement(self) -> NanakoLoop:
+    def parse_loop_statement(self) -> LoopNode:
         """ループ文をパース"""
         saved_pos = self.pos
         count = self.parse_expression()
@@ -822,21 +893,21 @@ class NanakoParser(object):
         body = self.parse_block()
         if body is None:
             raise SyntaxError("何をくり返すの？ { }で囲んでね！", error_details(self.text, self.pos))
-        return NanakoLoop(count, body)
+        return LoopNode(count, body)
     
-    def parse_return(self) -> NanakoReturn:
+    def parse_return(self) -> ReturnNode:
         saved_pos = self.pos
         expression = self.parse_expression()
         if expression:
             if self.consume_string("が答え"):
-                return NanakoReturn(expression)
+                return ReturnNode(expression)
             self.consume_whitespace()
             if self.pos >= self.length or self.text[self.pos] == '\n':
-                return NanakoExpression(expression)
+                return ExpressionStatementNode(expression)
         self.pos = saved_pos
         return None
     
-    def parse_expression(self, text=None) -> Expression:
+    def parse_expression(self, text=None) -> ExpressionNode:
         if text is not None:
             self.text = self.normalize(text)
             self.pos = 0
@@ -875,7 +946,7 @@ class NanakoParser(object):
         return None
                     
 
-    def parse_integer(self) -> NanakoNumber:
+    def parse_integer(self) -> NumberNode:
         """整数をパース"""
         saved_pos = self.pos
         if not self.consume_digit():
@@ -892,12 +963,12 @@ class NanakoParser(object):
         value_str = self.text[saved_pos:self.pos]
         try:
             value = int(value_str)
-            return NanakoNumber(value)
+            return NumberNode(value)
         except ValueError:
             self.pos = saved_pos
             return None
 
-    def parse_string(self) -> NanakoString:
+    def parse_string(self) -> ArrayNode:
         """文字列リテラルをパース"""
         saved_pos = self.pos
         
@@ -915,17 +986,17 @@ class NanakoParser(object):
                 self.pos += 1
                 next_char = self.text[self.pos]
                 if next_char == 'n':
-                    string_content.append(ord('\n'))
+                    string_content.append('\n')
                 elif next_char == 't':
-                    string_content.append(ord('\t'))
+                    string_content.append('\t')
                 elif next_char == '\\':
-                    string_content.append(ord('\\'))
+                    string_content.append('\\')
                 elif next_char == '"':
-                    string_content.append(ord('"'))
+                    string_content.append('"')
                 else:
-                    string_content.append(ord(next_char))
+                    string_content.append(next_char)
             else:
-                string_content.append(ord(char))
+                string_content.append(char)
             self.pos += 1
 
         # ダブルクォート終了
@@ -933,9 +1004,9 @@ class NanakoParser(object):
             self.pos = saved_pos
             raise SyntaxError(f"閉じ`\"`を忘れないで", error_details(self.text, saved_pos))
 
-        return NanakoString(string_content)
+        return StringNode(''.join(string_content))
 
-    def parse_minus(self) -> NanakoMinus:
+    def parse_minus(self) -> MinusNode:
         """整数をパース"""
         saved_pos = self.pos
         
@@ -947,9 +1018,9 @@ class NanakoParser(object):
         element = self.parse_expression()
         if element is None:
             raise SyntaxError(f"`-`の次に何か忘れてない？", error_details(self.text, self.pos))
-        return NanakoMinus(element)        
+        return MinusNode(element)        
 
-    def parse_len(self) -> NanakoLength:
+    def parse_len(self) -> LenNode:
         """絶対値または長さをパース"""
         saved_pos = self.pos
         if not self.consume("|", "｜"):
@@ -963,9 +1034,9 @@ class NanakoParser(object):
         self.consume_whitespace()
         if not self.consume("|", "｜"):
             raise SyntaxError(f"閉じ`|`を忘れないで", error_details(self.text, self.pos))
-        return NanakoLength(element)
+        return LenNode(element)
 
-    def parse_function(self) -> NanakoFunction:
+    def parse_function(self) -> FunctionNode:
         """関数をパース"""
         saved_pos = self.pos
         # "λ" または "入力"
@@ -1001,9 +1072,9 @@ class NanakoParser(object):
         
         if body is None:
             raise SyntaxError("関数の本体は？ { }で囲んでね！", error_details(self.text, self.pos))
-        return NanakoFunction(parameters, body)
+        return FunctionNode(parameters, body)
     
-    def parse_funccall(self) -> NanakoFuncCall:
+    def parse_funccall(self) -> FuncCallNode:
         """関数呼び出しをパース"""
         saved_pos = self.pos
         name = self.parse_identifier()
@@ -1031,9 +1102,9 @@ class NanakoParser(object):
                 raise SyntaxError(f"閉じ`)`を忘れないで", error_details(self.text, self.pos))
             self.consume_whitespace()
 
-        return NanakoFuncCall(name, arguments)
+        return FuncCallNode(name, arguments)
     
-    def parse_arraylist(self) -> NanakoArray:
+    def parse_arraylist(self) -> ArrayNode:
         """配列をパース"""
         saved_pos = self.pos
          # "[" で始まる
@@ -1057,15 +1128,15 @@ class NanakoParser(object):
             if not self.consume(",", "、", "，"):
                 raise SyntaxError(f"閉じ`]`を忘れないで", error_details(self.text, saved_pos))
 
-        return NanakoArray(elements)
+        return ArrayNode(elements)
     
-    def parse_null(self) -> NanakoNull:
+    def parse_null(self) -> NullNode:
         """null値をパース"""
         if self.consume("null", "?", "？"):
-            return NanakoNull()
+            return NullNode()
         return None
 
-    def parse_variable(self) -> NanakoVariable:
+    def parse_variable(self) -> VariableNode:
         """変数をパース"""
         name = self.parse_identifier()
         if name is None:
@@ -1082,9 +1153,9 @@ class NanakoParser(object):
 
         if len(indices) == 0:
             indices = None
-        return NanakoVariable(name, indices)
+        return VariableNode(name, indices)
     
-    def parse_block(self) -> NanakoBlock:
+    def parse_block(self) -> BlockNode:
         """ブロックをパース"""
         self.consume_whitespace()
         saved_pos = self.pos
@@ -1107,7 +1178,7 @@ class NanakoParser(object):
         if not found_closing_brace:
             raise SyntaxError("閉じ `}`を忘れないで", error_details(self.text, saved_pos))
 
-        return NanakoBlock(statements)
+        return BlockNode(statements)
     
     def parse_identifier(self) -> str:
         """識別子をパース"""

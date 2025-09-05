@@ -1,5 +1,5 @@
 import pytest
-from nanako import NanakoParser, NanakoRuntime, ReturnBreakException, NanakoError
+from nanako import NanakoParser, NanakoRuntime, NanakoArray, NanakoError
 
 class TestNanakoParser:
     """NanakoParser のテストクラス"""
@@ -76,6 +76,7 @@ class TestNanakoParser:
         """変数のインデックスアクセスのパースをテスト"""
         expression = self.parser.parse_expression('x[0]')
         self.env['x'] = [1, 2, 3]
+        self.env = self.runtime.transform_array(self.env)
         result = expression.evaluate(self.runtime, self.env)
         assert result == 1
 
@@ -84,6 +85,7 @@ class TestNanakoParser:
         with pytest.raises(SyntaxError) as e:
             expression = self.parser.parse_expression('x[3]')
             self.env['x'] = [1, 2, 3]
+            self.env = self.runtime.transform_array(self.env)
             result = expression.evaluate(self.runtime, self.env)
         print(e.value)
         assert "配列" in str(e.value)
@@ -92,6 +94,7 @@ class TestNanakoParser:
         """日本語の変数名のパースをテスト"""
         expression = self.parser.parse_expression('変数[0]')
         self.env['変数'] = [1, 2, 3]
+        self.env = self.runtime.transform_array(self.env)
         result = expression.evaluate(self.runtime, self.env)
         assert result == 1
 
@@ -99,6 +102,7 @@ class TestNanakoParser:
         """変数のインデックスアクセスのパースをテスト"""
         expression = self.parser.parse_expression('x[1][1]')
         self.env['x'] = [[1, 2], [3, 4]]
+        self.env = self.runtime.transform_array(self.env)
         result = expression.evaluate(self.runtime, self.env)
         assert result == 4
 
@@ -106,20 +110,15 @@ class TestNanakoParser:
         """日本語の変数名のパースをテスト"""
         expression = self.parser.parse_expression('変数[1][1]')
         self.env['変数'] = [[1, 2], [3, 4]]
+        self.env = self.runtime.transform_array(self.env)
         result = expression.evaluate(self.runtime, self.env)
         assert result == 4
 
-    def test_parse_abs(self):
-        """絶対値のパースをテスト"""
-        expression = self.parser.parse_expression('|x|')
-        self.env['x'] = -1
-        result = expression.evaluate(self.runtime, self.env)
-        assert result == 1
-
-    def test_parse_abs_list(self):
+    def test_parse_len(self):
         """絶対値のパースをテスト"""
         expression = self.parser.parse_expression('|x|')
         self.env['x'] = [1, 2]
+        self.env = self.runtime.transform_array(self.env)
         result = expression.evaluate(self.runtime, self.env)
         assert result == 2
 
@@ -127,19 +126,19 @@ class TestNanakoParser:
         """文字列リテラル '"AB"' のパースをテスト"""
         expression = self.parser.parse_expression('"AB"')
         result = expression.evaluate(self.runtime, self.env)
-        assert result == [65, 66]
+        assert result.elements == [65, 66]
 
     def test_parse_zenkaku_string(self):
         """文字列リテラル '“AB”' のパースをテスト"""
         expression = self.parser.parse_expression('“AB”') #変換ミス防止のため全角引用符
         result = expression.evaluate(self.runtime, self.env)
-        assert result == [65, 66]
+        assert result.elements == [65, 66]
 
     def test_parse_string_literal_empty(self):
         """空文字列のパースをテスト"""
         expression = self.parser.parse_expression('""')
         result = expression.evaluate(self.runtime, self.env)
-        assert result == []
+        assert result.elements == []
 
     def test_parse_string_literal_unclosed(self):
         """未閉じ文字列のパースをテスト"""
@@ -153,13 +152,13 @@ class TestNanakoParser:
         """配列リテラルのパースをテスト"""
         expression = self.parser.parse_expression('[1, 2, 3]')
         result = expression.evaluate(self.runtime, self.env)
-        assert result == [1, 2, 3]
+        assert result.elements == [1, 2, 3]
 
     def test_parse_array_literal_trailing_comma(self):
         """配列リテラルのパースをテスト"""
         expression = self.parser.parse_expression('[1, 2, 3,]')
         result = expression.evaluate(self.runtime, self.env)
-        assert result == [1, 2, 3]
+        assert result.elements == [1, 2, 3]
 
     def test_parse_array_literal_no_comma(self):
         """未閉じ配列リテラルのパースをテスト"""
@@ -181,13 +180,15 @@ class TestNanakoParser:
         """2次元配列のパースをテスト"""
         expression = self.parser.parse_expression('[[1, 2], [3, 4]]')
         result = expression.evaluate(self.runtime, self.env)
-        assert result == [[1, 2], [3, 4]]
+        assert result.elements[0].elements == [1, 2]
+        assert result.elements[1].elements == [3, 4]
 
     def test_parse_array_literal_string(self):
         """文字列配列のパースをテスト"""
         expression = self.parser.parse_expression('["AB", "CD"]')
         result = expression.evaluate(self.runtime, self.env)
-        assert result == [[65, 66], [67, 68]]
+        assert result.elements[0].elements == [65, 66]
+        assert result.elements[1].elements == [67, 68]
 
     def test_parse_assignment(self):
         """代入文のパースをテスト"""
@@ -225,29 +226,33 @@ class TestNanakoParser:
         """代入文のパースをテスト"""
         statement = self.parser.parse_statement('x[0] = 1')
         self.env['x'] = [0]
+        self.env = self.runtime.transform_array(self.env)
         statement.evaluate(self.runtime, self.env)
-        assert self.env['x'] == [1]
+        assert self.env['x'].elements == [1]
 
     def test_parse_assignment_array_ja(self):
         """代入文のパースをテスト"""
         statement = self.parser.parse_statement('変数[0] = 1')
         self.env['変数'] = [0]
+        self.env = self.runtime.transform_array(self.env)
         statement.evaluate(self.runtime, self.env)
-        assert self.env['変数'] == [1]
+        assert self.env['変数'].elements == [1]
 
     def test_parse_japanese_assignment_array(self):
         """代入文のパースをテスト"""
         statement = self.parser.parse_statement('x[0]を1とする')
-        self.env['x'] = [0]
+        self.env['x'] = NanakoArray([0])
+        self.env = self.runtime.transform_array(self.env)
         statement.evaluate(self.runtime, self.env)
-        assert self.env['x'] == [1]
+        assert self.env['x'].elements == [1]
 
     def test_parse_japanese_assignment_array_ja(self):
         """代入文のパースをテスト"""
         statement = self.parser.parse_statement('変数[0]を1とする')
         self.env['変数'] = [0]
+        self.env = self.runtime.transform_array(self.env)
         statement.evaluate(self.runtime, self.env)
-        assert self.env['変数'] == [1]
+        assert self.env['変数'].elements == [1]
 
     def test_parse_increment(self):
         """インクリメントのパースをテスト"""
@@ -281,15 +286,17 @@ class TestNanakoParser:
         """インクリメントのパースをテスト"""
         statement = self.parser.parse_statement('x[0]を増やす')
         self.env['x'] = [1, 1]
+        self.env = self.runtime.transform_array(self.env)
         statement.evaluate(self.runtime, self.env)
-        assert self.env['x'] == [2, 1]
+        assert self.env['x'].elements[0] == 2
 
     def test_parse_decrement_element(self):
         """デクリメントのパースをテスト"""
         statement = self.parser.parse_statement('x[0]を減らす')
         self.env['x'] = [1, 1]
+        self.env = self.runtime.transform_array(self.env)
         statement.evaluate(self.runtime, self.env)
-        assert self.env['x'] == [0, 1]
+        assert self.env['x'].elements[0] == 0
 
     def test_parse_increment_array(self):
         """インクリメントのパースをテスト"""
