@@ -70,17 +70,8 @@ The runtime includes operation counters (`increment_count`, `decrement_count`, `
   - Real-time code execution and error highlighting
   - Dark/light theme toggle
   - Tabbed interface for execution results, JavaScript, and Python code generation
-  - Example file loading from `examples/` directory
   - Auto-save and restore functionality for user code
   - 50:50 editor/output layout with resizable panels
-
-### Example Programs
-- `examples/01basic.nanako`: Basic increment/decrement operations
-- `examples/02loop.nanako`: Loop control examples
-- `examples/03function.nanako`: Function definition and calls
-- `examples/04if.nanako`: Conditional statements
-- `examples/gcd.nanako`: Greatest common divisor algorithm
-- `examples/fibonacci.nanako`: Fibonacci sequence implementation
 
 ### Documentation & Data
 - `data.csv`: Sample data file for CSV integration
@@ -94,12 +85,6 @@ The runtime includes operation counters (`increment_count`, `decrement_count`, `
 The JavaScript implementation includes `emit()` methods on all AST nodes that generate equivalent code in JavaScript or Python:
 - `ast.emit("js")`: Generates JavaScript code
 - `ast.emit("py")`: Generates Python code
-
-### Example File Integration
-The web editor can load actual example files from the `examples/` directory:
-- Dropdown selector loads real `.nanako` files
-- "🔄 マイコードに戻る" option restores user's saved code
-- Auto-save functionality preserves work in `localStorage`
 
 ### Monaco Editor Integration
 - Full syntax highlighting for Nanako language

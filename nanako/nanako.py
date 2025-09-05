@@ -62,6 +62,7 @@ class NanakoRuntime(object):
         return transform_array(value)
 
     def stringfy_as_json(self, env:Dict[str, Any]):
+        env = self.transform_array(env)
         return stringfy_as_json(env)
 
 

@@ -26,7 +26,7 @@ def main():
         if run_interactive:
             env = interactive_mode(env)
         runtime = NanakoRuntime()
-        print(runtime.stringify_as_json(env))
+        print(runtime.stringfy_as_json(env))
     except Exception as e:
         traceback.print_exc()
         print(f"エラー: {e}")
@@ -53,7 +53,7 @@ def interactive_mode(env):
             if code.strip():    
                 runtime = NanakoRuntime()
                 if code == "":
-                    print(runtime.stringify_as_json(env))
+                    print(runtime.stringfy_as_json(env))
                 else:
                     env = runtime.exec(code, env)
         except SyntaxError as e:
