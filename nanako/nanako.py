@@ -28,7 +28,7 @@ class NanakoRuntime(object):
     def update_variable(self, name: str, env: Dict[str, Any], source: str, pos: int):
         pass
 
-    def print(self, value, source: str, pos: int):
+    def print(self, value, source: str, pos: int, end_pos: int):
         source, line, col, snipet = error_details(source, pos)
         print(f">>> {snipet.strip()}\n{value}")
 
@@ -264,17 +264,17 @@ class NullNode(ExpressionNode):
 
 @dataclass
 class NumberNode(ExpressionNode):
-    value: float
+    value: int
 
-    def __init__(self, value: float = 0.0):
+    def __init__(self, value: int = 0):
         super().__init__()
-        self.value = float(value)
+        self.value = int(value)
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         return self.value
 
     def emit(self, lang="js", indent:str = "") -> str:
-        return str(int(self.value))
+        return str(self.value)
 
 
 @dataclass
@@ -489,6 +489,7 @@ class AssignmentNode(StatementNode):
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.expression.evaluate(runtime, env)
         self.variable.evaluate_with(runtime, env, value)
+        runtime.update_variable(self.variable.name, env, self.source, self.pos)
 
     def emit(self, lang="js", indent:str = "") -> str:
         variable = self.variable.emit(lang, indent)
@@ -680,7 +681,8 @@ class ExpressionStatementNode(StatementNode):
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
         value = self.expression.evaluate(runtime, env)
-        runtime.print(value, self.source, self.pos)
+        e = self.expression
+        runtime.print(value, e.source, e.pos, e.end_pos)
         return value
 
     def emit(self, lang="js", indent:str = "") -> str:

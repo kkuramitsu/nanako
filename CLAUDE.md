@@ -9,10 +9,11 @@ Nanako (ななこ) is an educational programming language designed for the gener
 ## Key Architecture Components
 
 ### Core Language Implementation (`nanako.py`)
+
 - **NanakoRuntime**: Execution environment with operation counting and timeout handling
 - **AST Nodes**: Abstract syntax tree classes inheriting from `ASTNode`
-  - Statements: `Assignment`, `Increment`, `Decrement`, `IfStatement`, `LoopStatement`, `ReturnStatement`
-  - Expressions: `Number`, `Variable`, `Function`, `FuncCall`, `ArrayList`, `StringLiteral`
+  - Statements: `AssignmentNode`, `IncrementNode`, `DecrementNode`, `IfNode`, `LoopNode`, `ReturnNode`, `TestNode`, `ExpressionStatementNode`
+  - Expressions: `NumberNode`, `VariableNode`, `FunctionNode`, `FuncCallNode`, `ArrayNode`, `StringNode`, `NullNode`, `MinusNonde`, `LenNode`
 - **NanakoParser**: Recursive descent parser with Japanese language support
 - **Error Handling**: Custom `NanakoError` with source position tracking
 
@@ -26,7 +27,7 @@ Nanako (ななこ) is an educational programming language designed for the gener
 
 ### Running Programs
 ```bash
-python run_nanako.py examples/basic.nanako     # Execute a nanako file
+python run_nanako.py basic.nanako              # Execute a nanako file
 python run_nanako.py                           # Interactive mode
 python run_nanako.py data.csv program.nanako   # Load CSV data and run program
 ```
@@ -34,13 +35,11 @@ python run_nanako.py data.csv program.nanako   # Load CSV data and run program
 ### Testing
 ```bash
 python -m pytest test_nanako.py               # Run full test suite
-python test_nanako.py                         # Direct test execution
 ```
 
 ### Example Programs
-- `examples/basic.nanako`: Basic increment/decrement operations
-- `examples/string_example.nanako`: String manipulation examples
-- `examples/loop.nanako`: Loop control examples
+- `examples/01basic.nanako`: Basic increment/decrement operations
+- `examples/02loop.nanako`: Loop control examples
 
 ## Implementation Notes
 
@@ -51,7 +50,7 @@ Variables are stored in environment dictionaries (`env`) passed through evaluati
 Functions create new environment scopes. Return values use `ReturnBreakException` for control flow, following the pattern `expression が答え` (expression is the answer).
 
 ### String Handling
-Strings are internally represented as arrays of Unicode code points, enabling character manipulation through array operations.
+Strings are internally represented as NanakoArray arrays of Unicode code points, enabling character manipulation through array operations.
 
 ### Runtime Execution
 The runtime includes operation counters (`increment_count`, `decrement_count`, `compare_count`) and call frame tracking for debugging and educational analysis.
@@ -70,8 +69,9 @@ The runtime includes operation counters (`increment_count`, `decrement_count`, `
   - Real-time code execution and error highlighting
   - Dark/light theme toggle
   - Tabbed interface for execution results, JavaScript, and Python code generation
-  - Auto-save and restore functionality for user code
   - 50:50 editor/output layout with resizable panels
+  - Selected examples are insert into the editor
+  - Output: NanakoRuntime.print(), NanakoRuntime stats, and NanakoRuntime.stringfy_as_json()
 
 ### Documentation & Data
 - `data.csv`: Sample data file for CSV integration
