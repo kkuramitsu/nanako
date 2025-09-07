@@ -98,10 +98,10 @@ The JavaScript implementation includes `emit()` methods on all AST nodes that ge
 When updating the web implementation:
 1. Modify `html/nanako.js` for core language changes
 2. Update `html/nanako_editor.html` for UI/editor features
-3. Test with example files in `examples/` directory
 4. Ensure both Monaco Editor and fallback editor work correctly
 
 ### Version Management
 - Python version is maintained in `nanako/__init__.py`, `setup.py`, and `pyproject.toml`
 - JavaScript version should be kept in sync with Python implementation
 - Both implementations share the same AST structure and language semantics
+

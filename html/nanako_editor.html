@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nanako (ななこ) Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            background: #f5f5f5;
+            transition: background 0.3s;
+        }
+
+        body.dark {
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        .header {
+            background: #2d2d30;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5em;
+            font-weight: 300;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #007acc;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #005a9e;
+        }
+
+        .btn-secondary {
+            background: #5a5a5a;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #6a6a6a;
+        }
+
+        .theme-toggle {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+
+        .editor-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #ddd;
+        }
+
+        body.dark .editor-panel {
+            border-right-color: #3e3e3e;
+        }
+
+        .editor-toolbar {
+            background: #f8f8f8;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        body.dark .editor-toolbar {
+            background: #2d2d30;
+            border-bottom-color: #3e3e3e;
+        }
+
+        .example-select {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            font-size: 14px;
+        }
+
+        body.dark .example-select {
+            background: #3c3c3c;
+            color: #d4d4d4;
+            border-color: #555;
+        }
+
+        .editor-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #editor {
+            width: 100%;
+            height: 100%;
+        }
+
+        .output-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        body.dark .output-panel {
+            background: #252526;
+        }
+
+        .output-tabs {
+            display: flex;
+            background: #f8f8f8;
+            border-bottom: 1px solid #ddd;
+        }
+
+        body.dark .output-tabs {
+            background: #2d2d30;
+            border-bottom-color: #3e3e3e;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .tab:hover {
+            background: rgba(0,0,0,0.05);
+        }
+
+        body.dark .tab:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .tab.active {
+            border-bottom-color: #007acc;
+            background: white;
+        }
+
+        body.dark .tab.active {
+            background: #252526;
+        }
+
+        .tab-content {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .output-content {
+            color: #333;
+        }
+
+        body.dark .output-content {
+            color: #d4d4d4;
+        }
+
+        .error {
+            color: #e74c3c;
+            background: #ffeaea;
+            padding: 10px;
+            border-left: 4px solid #e74c3c;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        body.dark .error {
+            background: #2d1b1b;
+            color: #ff6b6b;
+        }
+
+        .stats {
+            color: #666;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        body.dark .stats {
+            color: #999;
+        }
+
+        .json-output {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e1e1e1;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            color: #333;
+        }
+
+        body.dark .json-output {
+            background: #1e1e1e;
+            border-color: #3e3e3e;
+            color: #d4d4d4;
+        }
+
+        .print-output {
+            border-left: 3px solid #007acc;
+            padding-left: 10px;
+            margin: 8px 0;
+            color: #2c3e50;
+        }
+
+        body.dark .print-output {
+            color: #a8c8e6;
+        }
+
+        .loading {
+            display: none;
+            color: #666;
+            font-style: italic;
+        }
+
+        body.dark .loading {
+            color: #999;
+        }
+
+        .resizer {
+            width: 4px;
+            background: #ddd;
+            cursor: col-resize;
+            position: relative;
+            z-index: 10;
+        }
+
+        body.dark .resizer {
+            background: #3e3e3e;
+        }
+
+        .resizer:hover {
+            background: #007acc;
+        }
+
+        .fallback-editor {
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            background: white;
+            color: #333;
+        }
+
+        body.dark .fallback-editor {
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+
+        /* Error highlighting styles */
+        .error-line {
+            background-color: rgba(255, 0, 0, 0.1);
+            border-left: 4px solid #e74c3c;
+        }
+
+        body.dark .error-line {
+            background-color: rgba(255, 0, 0, 0.2);
+        }
+
+        .error-glyph {
+            background-color: #e74c3c;
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+            margin-left: 4px;
+            margin-top: 2px;
+        }
+
+        .error-glyph::after {
+            content: "!";
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .editor-panel, .output-panel {
+                width: 100%;
+                height: 50%;
+            }
+            
+            .resizer {
+                width: 100%;
+                height: 4px;
+                cursor: row-resize;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Nanako (ななこ) Editor</h1>
+        <div class="header-controls">
+            <button class="btn btn-primary" onclick="executeCode()">実行 (Ctrl+Enter)</button>
+            <button class="btn btn-secondary" onclick="clearOutput()">クリア</button>
+            <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="editor-panel">
+            <div class="editor-toolbar">
+                <label for="examples">例：</label>
+                <select id="examples" class="example-select" onchange="loadExample()">
+                    <option value="">-- 例を選択 --</option>
+                    <option value="basic">基本操作</option>
+                    <option value="loop">くり返し</option>
+                    <option value="function">関数定義</option>
+                    <option value="gcd">最大公約数</option>
+                    <option value="array">配列操作</option>
+                    <option value="recursive">再帰関数</option>
+                    <option value="bubblesort">バブルソート</option>
+                    <option value="quicksort">クイックソート</option>
+                    <option value="lifegame">ライフゲーム</option>
+                    <option value="rot13">ROT13暗号</option>
+                </select>
+                <span style="margin-left: 10px; color: #666; font-size: 12px;">
+                    Ctrl+Enter で実行
+                </span>
+            </div>
+            <div class="editor-container">
+                <div id="editor"></div>
+                <textarea id="fallback-editor" class="fallback-editor" style="display: none;" placeholder="Nanako プログラムをここに入力してください..."></textarea>
+            </div>
+        </div>
+
+        <div class="resizer" id="resizer"></div>
+
+        <div class="output-panel">
+            <div class="output-tabs">
+                <div class="tab active" onclick="switchTab('output')">出力</div>
+                <div class="tab" onclick="switchTab('javascript')">JavaScript</div>
+                <div class="tab" onclick="switchTab('python')">Python</div>
+            </div>
+            <div class="tab-content">
+                <div id="output-content" class="output-content">
+                    <div style="color: #666; font-style: italic;">
+                        プログラムを実行すると結果がここに表示されます
+                    </div>
+                </div>
+                <div class="loading" id="loading">実行中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <script src="nanako.js"></script>
+    <script>
+        let monacoEditor = null;
+        let currentTab = 'output';
+        let isDarkTheme = false;
+        let runtime = null;
+        let outputs = [];
+        let errorDecorations = [];
+        let lastExecutedCode = '';
+        let lastExecutionResult = null;
+
+        const examples = {
+            basic: `# 基本的な操作
+x = 10
+y = 5
+
+# 増やす・減らす
+xを増やす
+yを減らす
+
+x
+y`,
+
+            array: `# 配列の操作
+数列 = [1, 2, 3, 4, 5]
+文字列 = "Hello"
+
+# 配列の要素を取得
+数列[0]
+数列[2]
+
+# 文字列は文字コードの配列
+文字列[0]
+文字列[1]
+
+# 配列の長さ
+|数列|
+|文字列|`,
+
+            function: `# 関数定義の例
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+# 絶対値関数
+絶対値 = 入力 X に対し {
+    もしXが0より小さいならば、{
+        -Xが答え
+    }
+    そうでなければ {
+        Xが答え
+    }
+}
+
+# 関数を呼び出し
+result1 = 足し算(3, 4)
+result2 = 絶対値(-5)
+
+result1
+result2`,
+
+            loop: `# ループ処理
+count = 0
+
+# 5回繰り返す
+5回、くり返す {
+    countを増やす
+}
+
+count
+
+# 配列の各要素を処理
+numbers = [10, 20, 30]
+sum = 0
+i = 0
+
+|numbers|回、くり返す {
+    sum = 足し算(sum, numbers[i])
+    iを増やす
+}
+
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+sum`,
+
+            recursive: `# 再帰関数による階乗
+階乗 = 入力 n に対し {
+    もし n が 1 以下ならば、{
+        1が答え
+    }
+    そうでなければ、{
+        掛け算(n, 階乗(減らす(n)))が答え
+    }
+}
+
+掛け算 = 入力 X, Y に対し {
+    result = 0
+    Y回、くり返す {
+        result = 足し算(result, X)
+    }
+    resultが答え
+}
+
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+減らす = 入力 X に対し {
+    Xを減らす
+    Xが答え
+}
+
+# 5の階乗を計算
+result = 階乗(5)
+result`,
+
+            gcd: `# ユークリッド互除法による最大公約数
+最大公約数 = 入力 a, b に対し {
+    もし b が 0 ならば、{
+        aが答え
+    }
+    そうでなければ、{
+        最大公約数(b, あまり(a, b))が答え
+    }
+}
+
+あまり = 入力 X, Y に対し {
+    もし X が Y より小さいならば、{
+        Xが答え
+    }
+    そうでなければ、{
+        あまり(引き算(X, Y), Y)が答え
+    }
+}
+
+引き算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを減らす
+    }
+    Xが答え
+}
+
+# 60と48の最大公約数
+result = 最大公約数(60, 48)
+result`,
+
+            bubblesort: `# バブルソート
+# 配列をソートする関数
+バブルソート = 入力 配列 に対し {
+    n = |配列|
+    
+    # 外側ループ: n-1回繰り返し
+    引き算(n, 1)回、くり返す {
+        交換フラグ = 0
+        i = 0
+        
+        # 内側ループ: 隣接要素を比較
+        引き算(n, 1)回、くり返す {
+            もし 配列[i] が 配列[足し算(i, 1)] より大きい ならば、{
+                # 要素を交換
+                temp = 配列[i]
+                配列[i] = 配列[足し算(i, 1)]
+                配列[足し算(i, 1)] = temp
+                交換フラグ = 1
+            }
+            iを増やす
+        }
+        
+        # 交換がなかった場合は完了
+        もし 交換フラグ が 0 ならば、{
+            # 早期終了（最適化）
+        }
+    }
+    
+    配列が答え
+}
+
+# 必要な補助関数
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+引き算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを減らす
+    }
+    Xが答え
+}
+
+# ソートする配列
+数列 = [64, 34, 25, 12, 22, 11, 90]
+
+# ソート前
+数列
+
+# バブルソート実行
+ソート済み = バブルソート(数列)
+
+# ソート後
+ソート済み`,
+
+            quicksort: `# クイックソート（再帰版）
+# 配列の一部をソートする関数
+クイックソート = 入力 配列, 開始, 終了 に対し {
+    もし 開始 が 終了 より小さい ならば、{
+        # パーティション操作
+        境界 = パーティション(配列, 開始, 終了)
+        
+        # 左側を再帰的にソート
+        クイックソート(配列, 開始, 引き算(境界, 1))
+        
+        # 右側を再帰的にソート
+        クイックソート(配列, 足し算(境界, 1), 終了)
+    }
+    配列が答え
+}
+
+# パーティション操作（ピボットより小さい要素を左に移動）
+パーティション = 入力 配列, 開始, 終了 に対し {
+    # 最後の要素をピボットとする
+    ピボット = 配列[終了]
+    i = 開始
+    j = 開始
+    
+    # j から 終了-1 まで処理
+    引き算(終了, 開始)回、くり返す {
+        もし 配列[j] が ピボット より小さい ならば、{
+            # 要素を交換
+            temp = 配列[i]
+            配列[i] = 配列[j]
+            配列[j] = temp
+            iを増やす
+        }
+        jを増やす
+    }
+    
+    # ピボットを正しい位置に配置
+    temp = 配列[i]
+    配列[i] = 配列[終了]
+    配列[終了] = temp
+    
+    iが答え
+}
+
+# 配列全体をソートする便利関数
+配列ソート = 入力 配列 に対し {
+    長さ = |配列|
+    もし 長さ が 1 より大きい ならば、{
+        クイックソート(配列, 0, 引き算(長さ, 1))
+    }
+    配列が答え
+}
+
+# 必要な補助関数
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+引き算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを減らす
+    }
+    Xが答え
+}
+
+# ソートする配列
+数列 = [38, 27, 43, 3, 9, 82, 10]
+
+# ソート前
+数列
+
+# クイックソート実行
+ソート済み = 配列ソート(数列)
+
+# ソート後
+ソート済み`,
+
+            lifegame: `# Conway's Life Game (ライフゲーム)
+# 5x5のグリッドで3世代実行
+
+# セルの状態を取得（境界外は0）
+セル取得 = 入力 盤面, 行, 列 に対し {
+    もし 行 が 0 より小さい ならば、{
+        0が答え
+    }
+    もし 列 が 0 より小さい ならば、{
+        0が答え
+    }
+    もし 行 が 5 以上 ならば、{
+        0が答え
+    }
+    もし 列 が 5 以上 ならば、{
+        0が答え
+    }
+    # 2次元配列アクセス: board[row * 5 + col]
+    インデックス = 足し算(掛け算(行, 5), 列)
+    盤面[インデックス]が答え
+}
+
+# 隣接する生きているセルの数をカウント
+隣接カウント = 入力 盤面, 行, 列 に対し {
+    カウント = 0
+    
+    # 8方向をチェック
+    # 上
+    カウント = 足し算(カウント, セル取得(盤面, 引き算(行, 1), 引き算(列, 1)))
+    カウント = 足し算(カウント, セル取得(盤面, 引き算(行, 1), 列))
+    カウント = 足し算(カウント, セル取得(盤面, 引き算(行, 1), 足し算(列, 1)))
+    
+    # 左右
+    カウント = 足し算(カウント, セル取得(盤面, 行, 引き算(列, 1)))
+    カウント = 足し算(カウント, セル取得(盤面, 行, 足し算(列, 1)))
+    
+    # 下
+    カウント = 足し算(カウント, セル取得(盤面, 足し算(行, 1), 引き算(列, 1)))
+    カウント = 足し算(カウント, セル取得(盤面, 足し算(行, 1), 列))
+    カウント = 足し算(カウント, セル取得(盤面, 足し算(行, 1), 足し算(列, 1)))
+    
+    カウントが答え
+}
+
+# 次の世代を計算
+次世代計算 = 入力 現在盤面 に対し {
+    新盤面 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    行 = 0
+    
+    5回、くり返す {
+        列 = 0
+        5回、くり返す {
+            現在セル = セル取得(現在盤面, 行, 列)
+            隣接数 = 隣接カウント(現在盤面, 行, 列)
+            インデックス = 足し算(掛け算(行, 5), 列)
+            
+            # ライフゲームのルール
+            もし 現在セル が 1 ならば、{
+                # 生きているセル
+                もし 隣接数 が 2 ならば、{
+                    新盤面[インデックス] = 1  # 生存
+                }
+                もし 隣接数 が 3 ならば、{
+                    新盤面[インデックス] = 1  # 生存
+                }
+            }
+            そうでなければ、{
+                # 死んでいるセル
+                もし 隣接数 が 3 ならば、{
+                    新盤面[インデックス] = 1  # 誕生
+                }
+            }
+            
+            列を増やす
+        }
+        行を増やす
+    }
+    
+    新盤面が答え
+}
+
+# 必要な補助関数
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+引き算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを減らす
+    }
+    Xが答え
+}
+
+掛け算 = 入力 X, Y に対し {
+    結果 = 0
+    Y回、くり返す {
+        結果 = 足し算(結果, X)
+    }
+    結果が答え
+}
+
+# 初期パターン（グライダー）
+# [0,0,0,0,0]  □□□□□
+# [0,1,0,0,0]  □■□□□
+# [0,0,1,1,0]  □□■■□
+# [0,1,1,0,0]  □■■□□
+# [0,0,0,0,0]  □□□□□
+盤面0 = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0]
+
+# 各世代の状態
+盤面0
+盤面1 = 次世代計算(盤面0)
+盤面1
+盤面2 = 次世代計算(盤面1)
+盤面2
+盤面3 = 次世代計算(盤面2)
+盤面3`,
+
+            rot13: `# ROT13 暗号化・復号化
+# アルファベットを13文字ずらす暗号
+
+# 文字が大文字のA-Zかチェック
+大文字判定 = 入力 文字コード に対し {
+    # A=65, Z=90
+    もし 文字コード が 65 以上 ならば、{
+        もし 文字コード が 90 以下 ならば、{
+            1が答え
+        }
+    }
+    0が答え
+}
+
+# 文字が小文字のa-zかチェック  
+小文字判定 = 入力 文字コード に対し {
+    # a=97, z=122
+    もし 文字コード が 97 以上 ならば、{
+        もし 文字コード が 122 以下 ならば、{
+            1が答え
+        }
+    }
+    0が答え
+}
+
+# ROT13変換（1文字）
+文字ROT13 = 入力 文字コード に対し {
+    もし 大文字判定(文字コード) が 1 ならば、{
+        # 大文字の場合：A(65)を基準に13ずらす
+        相対位置 = 引き算(文字コード, 65)
+        新位置 = あまり(足し算(相対位置, 13), 26)
+        足し算(新位置, 65)が答え
+    }
+    
+    もし 小文字判定(文字コード) が 1 ならば、{
+        # 小文字の場合：a(97)を基準に13ずらす
+        相対位置 = 引き算(文字コード, 97)
+        新位置 = あまり(足し算(相対位置, 13), 26)
+        足し算(新位置, 97)が答え
+    }
+    
+    # アルファベット以外はそのまま
+    文字コードが答え
+}
+
+# 文字列全体をROT13変換
+文字列ROT13 = 入力 文字列 に対し {
+    結果 = []
+    i = 0
+    長さ = |文字列|
+    
+    長さ回、くり返す {
+        元文字 = 文字列[i]
+        新文字 = 文字ROT13(元文字)
+        結果[?] = 新文字
+        iを増やす
+    }
+    
+    結果が答え
+}
+
+# 剰余計算（割り算の余り）
+あまり = 入力 被除数, 除数 に対し {
+    もし 被除数 が 除数 より小さい ならば、{
+        被除数が答え
+    }
+    あまり(引き算(被除数, 除数), 除数)が答え
+}
+
+# 必要な補助関数
+足し算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを増やす
+    }
+    Xが答え
+}
+
+引き算 = 入力 X, Y に対し {
+    Y回、くり返す {
+        Xを減らす
+    }
+    Xが答え
+}
+
+# テスト用の文字列
+# "Hello World" の文字コード配列
+# H=72, e=101, l=108, l=108, o=111, (space)=32, W=87, o=111, r=114, l=108, d=100
+元文字列 = [72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]
+
+# 暗号化
+暗号化文字列 = 文字列ROT13(元文字列)
+
+# 復号化（ROT13は対称なので2回適用で元に戻る）
+復号化文字列 = 文字列ROT13(暗号化文字列)
+
+# 結果表示
+元文字列
+暗号化文字列
+復号化文字列`
+        };
+
+        // Initialize Monaco Editor
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            // Define Nanako language
+            monaco.languages.register({ id: 'nanako' });
+            
+            monaco.languages.setMonarchTokensProvider('nanako', {
+                tokenizer: {
+                    root: [
+                        [/#.*$/, 'comment'],
+                        // Control flow keywords
+                        [/\b(もし|ならば|そうでなければ|くり返す|回)\b/, 'keyword.control'],
+                        // Function keywords
+                        [/\b(入力|に対し|が答え|を実行)\b/, 'keyword.function'],
+                        // Variable operation keywords
+                        [/\b(を|とする|増やす|減らす|出力)\b/, 'keyword.operator'],
+                        // Comparison operators
+                        [/\b(以上|以下|より大きい|より小さい|以外|未満)\b/, 'operator.comparison'],
+                        // Numbers
+                        [/\d+/, 'number'],
+                        // Strings
+                        [/"([^"\\]|\\.)*"/, 'string'],
+                        // Identifiers (Japanese and ASCII)
+                        [/[a-zA-Z_\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff][a-zA-Z0-9_\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]*/, 'identifier'],
+                        // Brackets and punctuation
+                        [/[{}()\[\]]/, 'bracket'],
+                        [/[=+\-*/、,]/, 'operator']
+                    ]
+                }
+            });
+
+            // Define custom color theme for Nanako
+            monaco.editor.defineTheme('nanako-light', {
+                base: 'vs',
+                inherit: true,
+                rules: [
+                    { token: 'keyword.control', foreground: '0000FF', fontStyle: 'bold' },      // Blue for control flow
+                    { token: 'keyword.function', foreground: 'FF6600', fontStyle: 'bold' },    // Orange for functions
+                    { token: 'keyword.operator', foreground: 'CC0099', fontStyle: 'bold' },    // Purple for operations
+                    { token: 'operator.comparison', foreground: '009900', fontStyle: 'bold' }, // Green for comparisons
+                    { token: 'number', foreground: 'FF0000' },                                 // Red for numbers
+                    { token: 'string', foreground: 'A31515' },                                 // Dark red for strings
+                    { token: 'comment', foreground: '008000', fontStyle: 'italic' },           // Green italic for comments
+                ],
+                colors: {}
+            });
+
+            monaco.editor.defineTheme('nanako-dark', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'keyword.control', foreground: '569CD6', fontStyle: 'bold' },      // Light blue for control flow
+                    { token: 'keyword.function', foreground: 'FF9800', fontStyle: 'bold' },     // Orange for functions
+                    { token: 'keyword.operator', foreground: 'E91E63', fontStyle: 'bold' },     // Pink for operations
+                    { token: 'operator.comparison', foreground: '4CAF50', fontStyle: 'bold' },  // Green for comparisons
+                    { token: 'number', foreground: 'F44336' },                                  // Red for numbers
+                    { token: 'string', foreground: 'CE9178' },                                  // Light brown for strings
+                    { token: 'comment', foreground: '6A9955', fontStyle: 'italic' },            // Green italic for comments
+                ],
+                colors: {}
+            });
+
+            monacoEditor = monaco.editor.create(document.getElementById('editor'), {
+                value: '# Nanako (ななこ) プログラムをここに書いてください\n# 例題を選択するか、Ctrl+Enter で実行してください\n\nx = 42\nxを増やす\nx',
+                language: 'nanako',
+                theme: 'nanako-light',
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                minimap: { enabled: false },
+                wordWrap: 'on'
+            });
+
+            // Add keyboard shortcut
+            monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function() {
+                executeCode();
+            });
+        });
+
+        // Fallback for when Monaco fails to load
+        setTimeout(() => {
+            if (!monacoEditor) {
+                document.getElementById('editor').style.display = 'none';
+                document.getElementById('fallback-editor').style.display = 'block';
+                document.getElementById('fallback-editor').value = '# Nanako (ななこ) プログラムをここに書いてください\n\nx = 42\nxを増やす\nx';
+            }
+        }, 3000);
+
+        function getEditorValue() {
+            if (monacoEditor) {
+                return monacoEditor.getValue();
+            } else {
+                return document.getElementById('fallback-editor').value;
+            }
+        }
+
+        function setEditorValue(value) {
+            if (monacoEditor) {
+                monacoEditor.setValue(value);
+            } else {
+                document.getElementById('fallback-editor').value = value;
+            }
+        }
+
+        function loadExample() {
+            const select = document.getElementById('examples');
+            const exampleKey = select.value;
+            if (exampleKey && examples[exampleKey]) {
+                setEditorValue(examples[exampleKey]);
+                select.value = '';
+                
+                // Reset execution state since code changed
+                lastExecutedCode = '';
+                lastExecutionResult = null;
+                clearErrorHighlights();
+            }
+        }
+
+        function clearErrorHighlights() {
+            if (monacoEditor && errorDecorations.length > 0) {
+                errorDecorations = monacoEditor.deltaDecorations(errorDecorations, []);
+            }
+        }
+
+        function highlightErrorLine(line, message) {
+            if (monacoEditor) {
+                const decorations = [{
+                    range: new monaco.Range(line, 1, line, 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'error-line',
+                        glyphMarginClassName: 'error-glyph',
+                        hoverMessage: { value: message },
+                        minimap: {
+                            color: '#ff0000',
+                            position: monaco.editor.MinimapPosition.Inline
+                        }
+                    }
+                }];
+                errorDecorations = monacoEditor.deltaDecorations(errorDecorations, decorations);
+            }
+        }
+
+        function parseErrorPosition(error, code) {
+            let line = 1;
+            let column = 1;
+            
+            // Try to extract position from error details
+            if (error.details && error.details.line) {
+                return { line: error.details.line, column: error.details.col || 1 };
+            }
+            
+            // Try to extract line number from error message
+            const lineMatch = error.message.match(/line (\d+)/i);
+            if (lineMatch) {
+                return { line: parseInt(lineMatch[1]), column: 1 };
+            }
+            
+            // If error has pos property, calculate line from position
+            if (typeof error.pos === 'number') {
+                const lines = code.substring(0, error.pos).split('\n');
+                line = lines.length;
+                column = lines[lines.length - 1].length + 1;
+                return { line, column };
+            }
+            
+            return { line: 1, column: 1 };
+        }
+
+        function executeCodeInternal(code, updateDisplay = true) {
+            if (!code.trim()) {
+                return null;
+            }
+
+            try {
+                // Initialize runtime
+                runtime = new NanakoRuntime();
+                
+                // Override print function to capture output
+                const originalPrint = runtime.print;
+                runtime.print = function(value, source, pos, endPos) {
+                    const details = errorDetails(source, pos);
+                    
+                    // 配列の場合はコピーを作成して参照の問題を回避
+                    let outputValue = value;
+                    if (value instanceof NanakoArray) {
+                        outputValue = new NanakoArray([...value.elements]);
+                        outputValue.isStringView = value.isStringView;
+                    }
+                    
+                    outputs.push({
+                        type: 'print',
+                        code: details.lineText.trim(),
+                        value: outputValue
+                    });
+                };
+
+                // Parse and execute
+                const parser = new NanakoParser();
+                const program = parser.parse(code);
+                const env = {};
+                
+                runtime.start(10); // 10 second timeout
+                program.evaluate(runtime, env);
+
+                // Generate output
+                let output = '';
+                
+                // 1. Print outputs
+                if (outputs.length > 0) {
+                    output += '=== 実行結果 ===\n';
+                    outputs.forEach(item => {
+                        output += `>>> ${item.code}\n`;
+                        if (item.value instanceof NanakoArray) {
+                            if (item.value.isStringView) {
+                                const chars = item.value.elements.map(code => String.fromCharCode(code)).join('');
+                                output += `"${chars}"\n`;
+                            } else {
+                                output += `${item.value.emit('js')}\n`;
+                            }
+                        } else {
+                            output += `${item.value}\n`;
+                        }
+                        output += '\n';
+                    });
+                }
+
+                // 2. Runtime statistics
+                output += '=== 統計情報 ===\n';
+                output += `インクリメント回数: ${runtime.incrementCount}\n`;
+                output += `デクリメント回数: ${runtime.decrementCount}\n`;
+                output += `比較回数: ${runtime.compareCount}\n\n`;
+
+                // 3. JSON output
+                output += '=== 変数の状態 (JSON) ===\n';
+                output += runtime.stringfyAsJson(env);
+
+                // Generate code for other tabs
+                let generatedJS, generatedPython;
+                try {
+                    generatedJS = program.emit('js', '');
+                    generatedPython = program.emit('py', '');
+                    console.log('Generated JS length:', generatedJS.length, 'chars');
+                    console.log('Generated Python length:', generatedPython.length, 'chars');
+                    if (generatedJS.length === 0) console.warn('JS code is empty!');
+                    if (generatedPython.length === 0) console.warn('Python code is empty!');
+                } catch (e) {
+                    console.error('Code generation failed:', e);
+                    generatedJS = '// コード生成中にエラーが発生しました\n' + e.message;
+                    generatedPython = '# コード生成中にエラーが発生しました\n' + e.message;
+                }
+
+                const result = {
+                    success: true,
+                    output: output,
+                    jsCode: generatedJS,
+                    pyCode: generatedPython,
+                    error: null
+                };
+
+                if (updateDisplay && currentTab === 'output') {
+                    document.getElementById('output-content').innerHTML = `<div class="output-content">${escapeHtml(output)}</div>`;
+                }
+
+                return result;
+
+            } catch (error) {
+                // Parse error position and highlight the line
+                const errorPos = parseErrorPosition(error, code);
+                const errorMessage = `エラー: ${error.message}`;
+                const errorOutput = `${errorMessage}<br><small>行 ${errorPos.line}, 列 ${errorPos.column}</small>`;
+                
+                const result = {
+                    success: false,
+                    output: errorOutput,
+                    jsCode: '// エラーが発生しました\n' + errorMessage,
+                    pyCode: '# エラーが発生しました\n' + errorMessage,
+                    error: error,
+                    errorPos: errorPos,
+                    errorMessage: errorMessage
+                };
+
+                if (updateDisplay) {
+                    if (currentTab === 'output') {
+                        document.getElementById('output-content').innerHTML = `<div class="error">${errorOutput}</div>`;
+                    }
+                    // Highlight error line in editor
+                    highlightErrorLine(errorPos.line, errorMessage);
+                }
+                
+                console.error('Execution error:', error);
+                return result;
+            }
+        }
+
+        function executeCode() {
+            const code = getEditorValue();
+            if (!code.trim()) {
+                return;
+            }
+
+            // Clear output immediately when execution starts
+            document.getElementById('output-content').innerHTML = '<div style="color: #666; font-style: italic;">実行中...</div>';
+            
+            // Reset execution state immediately
+            lastExecutedCode = '';
+            lastExecutionResult = null;
+            window.generatedJS = '';
+            window.generatedPython = '';
+            
+            const loadingEl = document.getElementById('loading');
+            
+            // Clear previous error highlights
+            clearErrorHighlights();
+            
+            loadingEl.style.display = 'block';
+            outputs = [];
+            
+            setTimeout(() => {
+                lastExecutedCode = code;
+                lastExecutionResult = executeCodeInternal(code, true);
+                
+                // Store global references for backward compatibility
+                if (lastExecutionResult.success) {
+                    window.generatedJS = lastExecutionResult.jsCode;
+                    window.generatedPython = lastExecutionResult.pyCode;
+                } else {
+                    window.generatedJS = lastExecutionResult.jsCode;
+                    window.generatedPython = lastExecutionResult.pyCode;
+                }
+
+                loadingEl.style.display = 'none';
+            }, 100);
+        }
+
+        function clearOutput() {
+            // Reset execution state
+            lastExecutedCode = '';
+            lastExecutionResult = null;
+            outputs = [];
+            window.generatedJS = '';
+            window.generatedPython = '';
+            
+            // Clear error highlights
+            clearErrorHighlights();
+            
+            // Reset display
+            document.getElementById('output-content').innerHTML = '<div style="color: #666; font-style: italic;">プログラムを実行すると結果がここに表示されます</div>';
+            
+            // Switch to output tab
+            if (currentTab !== 'output') {
+                currentTab = 'output';
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelector('.tab').classList.add('active');
+            }
+        }
+
+        function ensureCodeExecuted() {
+            const currentCode = getEditorValue();
+            
+            // Check if code has changed since last execution
+            if (currentCode !== lastExecutedCode || !lastExecutionResult) {
+                // Re-execute the code
+                outputs = [];
+                clearErrorHighlights();
+                
+                const loadingEl = document.getElementById('loading');
+                loadingEl.style.display = 'block';
+                
+                setTimeout(() => {
+                    lastExecutedCode = currentCode;
+                    lastExecutionResult = executeCodeInternal(currentCode, false);
+                    
+                    // Update current tab display
+                    updateCurrentTabContent();
+                    loadingEl.style.display = 'none';
+                }, 50);
+            } else {
+                // Code hasn't changed, just update display
+                updateCurrentTabContent();
+            }
+        }
+
+        function updateCurrentTabContent() {
+            const content = document.getElementById('output-content');
+            
+            if (!lastExecutionResult) {
+                content.innerHTML = '<div style="color: #666; font-style: italic;">プログラムを実行すると結果がここに表示されます</div>';
+                return;
+            }
+
+            if (currentTab === 'output') {
+                if (lastExecutionResult.success) {
+                    content.innerHTML = `<div class="output-content">${escapeHtml(lastExecutionResult.output)}</div>`;
+                } else {
+                    content.innerHTML = `<div class="error">${lastExecutionResult.output}</div>`;
+                    if (lastExecutionResult.errorPos) {
+                        highlightErrorLine(lastExecutionResult.errorPos.line, lastExecutionResult.errorMessage);
+                    }
+                }
+            } else if (currentTab === 'javascript') {
+                const jsCode = lastExecutionResult.jsCode || '// コードを実行してください';
+                console.log('Displaying JS tab, code length:', jsCode.length);
+                console.log('JS Code preview (first 200 chars):', jsCode.substring(0, 200));
+                content.innerHTML = `<div class="json-output">${escapeHtml(jsCode)}</div>`;
+            } else if (currentTab === 'python') {
+                const pyCode = lastExecutionResult.pyCode || '# コードを実行してください';
+                console.log('Displaying Python tab, code length:', pyCode.length);
+                console.log('Python Code preview (first 200 chars):', pyCode.substring(0, 200));
+                content.innerHTML = `<div class="json-output">${escapeHtml(pyCode)}</div>`;
+            }
+
+            // Update global variables for backward compatibility
+            if (lastExecutionResult.success) {
+                window.generatedJS = lastExecutionResult.jsCode;
+                window.generatedPython = lastExecutionResult.pyCode;
+            }
+        }
+
+        function switchTab(tab) {
+            // Update tab appearance
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            currentTab = tab;
+            
+            // Ensure code is executed and synchronized with current editor content
+            ensureCodeExecuted();
+        }
+
+        function toggleTheme() {
+            isDarkTheme = !isDarkTheme;
+            document.body.classList.toggle('dark');
+            
+            if (monacoEditor) {
+                monaco.editor.setTheme(isDarkTheme ? 'nanako-dark' : 'nanako-light');
+            }
+            
+            localStorage.setItem('nanako-theme', isDarkTheme ? 'dark' : 'light');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize resizer
+        let isResizing = false;
+        const resizer = document.getElementById('resizer');
+        const editorPanel = document.querySelector('.editor-panel');
+        const outputPanel = document.querySelector('.output-panel');
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', stopResize);
+        });
+
+        function handleResize(e) {
+            if (!isResizing) return;
+            
+            const containerWidth = document.querySelector('.main-container').offsetWidth;
+            const newLeftWidth = (e.clientX / containerWidth) * 100;
+            
+            if (newLeftWidth > 20 && newLeftWidth < 80) {
+                editorPanel.style.width = newLeftWidth + '%';
+                outputPanel.style.width = (100 - newLeftWidth) + '%';
+            }
+        }
+
+        function stopResize() {
+            isResizing = false;
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        // Add keyboard shortcut for fallback editor
+        document.getElementById('fallback-editor').addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                executeCode();
+            }
+        });
+
+        // Load theme from localStorage
+        const savedTheme = localStorage.getItem('nanako-theme');
+        if (savedTheme === 'dark') {
+            toggleTheme();
+        }
+
+        // Auto-execute on page load with delay
+        setTimeout(() => {
+            executeCode();
+        }, 1000);
+    </script>
+</body>
+</html>
