@@ -112,7 +112,7 @@ try:
         try:
             runtime = NanakoRuntime()
             env = runtime.exec(cell)
-            print(dump_dict_as_json(env))
+            print(runtime.stringfy_as_json(env))
         except Exception as e:
             print(f"エラー: {e}")
 except NameError:

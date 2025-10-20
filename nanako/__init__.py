@@ -12,7 +12,13 @@ from .nanako import (
     NanakoError,
 )
 
-__version__ = "0.1.2"
+# Import run_nanako to register cell magic
+try:
+    from . import run_nanako
+except ImportError:
+    pass
+
+__version__ = "0.1.3"
 __author__ = "Nanako Project"
 __description__ = "An educational programming language for the generative AI era"
 
