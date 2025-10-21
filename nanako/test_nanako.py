@@ -188,6 +188,12 @@ class TestNanakoParser:
         print(e.value)
         assert "閉" in str(e.value)
 
+    def test_parse_charactor_literal(self):
+        """未閉じ文字列のパースをテスト"""
+        expression = self.parser.parse_expression('"A"[0]')
+        result = expression.evaluate(self.runtime, self.env)
+        assert result == 65
+
     def test_parse_array_literal(self):
         """配列リテラルのパースをテスト"""
         expression = self.parser.parse_expression('[1, 2, 3]')
