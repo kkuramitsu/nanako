@@ -18,7 +18,7 @@ try:
 except ImportError:
     pass
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __author__ = "Nanako Project"
 __description__ = "An educational programming language for the generative AI era"
 
