@@ -2,7 +2,7 @@
 // An educational programming language for the generative AI era.
 
 // Version
-const NANAKO_VERSION = "0.2.0";
+const NANAKO_VERSION = "0.2.1";
 
 // Utils
 function errorDetails(text, pos) {
