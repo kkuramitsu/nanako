@@ -348,7 +348,10 @@
 </head>
 <body>
     <div class="header">
-        <h1>Nanako (ななこ) Editor</h1>
+        <div>
+            <h1>Nanako (ななこ) Editor</h1>
+            <span id="version-display" style="font-size: 0.8em; color: #999; margin-left: 10px;"></span>
+        </div>
         <div class="header-controls">
             <button class="btn btn-primary" onclick="executeCode()">実行 (Ctrl+Enter)</button>
             <button class="btn btn-secondary" onclick="clearOutput()">クリア</button>
@@ -999,6 +1002,9 @@ result`,
             monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function() {
                 executeCode();
             });
+
+            // Display version
+            displayVersion();
         });
 
         // Fallback for when Monaco fails to load
@@ -1007,6 +1013,7 @@ result`,
                 document.getElementById('editor').style.display = 'none';
                 document.getElementById('fallback-editor').style.display = 'block';
                 document.getElementById('fallback-editor').value = '# Nanako (ななこ) プログラムをここに書いてください\n\nx = 42\nxを増やす\nx';
+                displayVersion();
             }
         }, 3000);
 
@@ -1023,6 +1030,13 @@ result`,
                 monacoEditor.setValue(value);
             } else {
                 document.getElementById('fallback-editor').value = value;
+            }
+        }
+
+        function displayVersion() {
+            const versionDisplay = document.getElementById('version-display');
+            if (versionDisplay && typeof NANAKO_VERSION !== 'undefined') {
+                versionDisplay.textContent = `v${NANAKO_VERSION}`;
             }
         }
 

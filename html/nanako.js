@@ -1,6 +1,9 @@
 // Nanako (ななこ) - JavaScript Implementation
 // An educational programming language for the generative AI era.
 
+// Version
+const NANAKO_VERSION = "0.2.0";
+
 // Utils
 function errorDetails(text, pos) {
     let line = 1;
@@ -646,6 +649,35 @@ class DecrementNode extends StatementNode {
     }
 }
 
+class AppendNode extends StatementNode {
+    constructor(variable, expression) {
+        super();
+        this.variable = variable;
+        this.expression = expression;
+    }
+
+    evaluate(runtime, env) {
+        const array = this.variable.evaluate(runtime, env);
+        if (!(array instanceof NanakoArray)) {
+            throw new NanakoError(`配列じゃないね？ ❌${array}`, this.variable.errorDetails());
+        }
+        const value = this.expression.evaluate(runtime, env);
+        array.elements.push(value);
+    }
+
+    emit(lang = "js", indent = "") {
+        const variable = this.variable.emit(lang, indent);
+        const expression = this.expression.emit(lang, indent);
+        if (lang === "py") {
+            return `${indent}${variable}.append(${expression})`;
+        }
+        if (lang === "js") {
+            return `${indent}${variable}.push(${expression})${this.semicolon(lang)}`;
+        }
+        return `${indent}${variable}.append(${expression})`;
+    }
+}
+
 class IfNode extends StatementNode {
     constructor(left, operator, right, thenBlock, elseBlock = null) {
         super();
@@ -934,13 +966,27 @@ class NanakoParser {
         // 代入文をパース
         const savedPos = this.pos;
 
-        const variable = this.parseVariable();
+        const variable = this.parseVariable(true);  // definitionContext = true
         if (variable === null) {
             this.pos = savedPos;
             return null;
         }
 
         this.consumeWhitespace();
+
+        // "の末尾に" 構文
+        if (this.consume("の末尾に")) {
+            this.consumeCma();
+            const expression = this.parseExpression();
+            if (expression === null) {
+                throw new NanakoError("ここに何か忘れてません？", this.errorDetails(this.pos));
+            }
+            this.consumeWhitespace();
+            this.consumeString("を");
+            this.consumeCma();
+            this.consume("追加する");
+            return new AppendNode(variable, expression);
+        }
 
         if (this.consumeString("を")) {
             this.consumeWhitespace();
@@ -1256,7 +1302,7 @@ class NanakoParser {
         // パラメータ
         const parameters = [];
         while (true) {
-            const identifier = this.parseIdentifier();
+            const identifier = this.parseIdentifier(true);  // definitionContext = true
             if (identifier === null) {
                 throw new SyntaxError("変数名が必要", this.errorDetails(this.pos));
             }
@@ -1367,9 +1413,9 @@ class NanakoParser {
         return null;
     }
 
-    parseVariable() {
+    parseVariable(definitionContext = false) {
         // 変数をパース
-        const name = this.parseIdentifier();
+        const name = this.parseIdentifier(definitionContext);
         if (name === null) {
             return null;
         }
@@ -1442,9 +1488,33 @@ class NanakoParser {
         return new BlockNode(statements);
     }
 
-    parseIdentifier() {
+    parseIdentifier(definitionContext = false) {
         // 識別子をパース
         const savedPos = this.pos;
+
+        if (definitionContext) {
+            // 定義時のコンテキスト: より広範な文字を変数名として受け入れる
+            while (this.pos < this.length) {
+                const char = this.text[this.pos];
+                if (" \t\n\r,=[](){}#　＝＃、，【】（）｛｝".includes(char)) {
+                    break;
+                }
+                if ("にをの".includes(char)) {
+                    const remaining = this.text.slice(this.pos);
+                    if (remaining.startsWith("に対し") || remaining.startsWith("を増やす") ||
+                        remaining.startsWith("を減らす") || remaining.startsWith("の末尾に")) {
+                        break;
+                    }
+                }
+                this.pos++;
+            }
+            const name = this.text.slice(savedPos, this.pos).trim();
+            if (name.length > 0) {
+                return name;
+            }
+            return null;
+        }
+
         if (!this.consumeAlpha()) {
             this.pos = savedPos;
             return null;
@@ -1468,7 +1538,7 @@ class NanakoParser {
     notIdentifierWords() {
         // 除外キーワードチェック
         const remaining = this.text.slice(this.pos);
-        for (const kw of ["くり返す", "を", "回", "とする", "が", "ならば", "に対し"]) {
+        for (const kw of ["くり返す", "を", "回", "とする", "が", "ならば", "に対し", "を増やす", "を減らす", "の末尾に"]) {
             if (remaining.startsWith(kw)) {
                 return false;
             }

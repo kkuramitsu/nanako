@@ -61,7 +61,7 @@ def main():
                 try:
                     env = run_file(file, env)
                     run_interactive = False
-                except NanakoError as e:
+                except SyntaxError as e:
                     # Nanakoの構文エラーや実行時エラー
                     print(f"\nエラーが発生しました: {file}", file=sys.stderr)
                     # エラー詳細を表示
@@ -69,10 +69,12 @@ def main():
                         msg, details = e.args[0], e.args[1]
                         if isinstance(details, tuple) and len(details) >= 4:
                             source, line, col, snippet = details
-                            print(f"  行 {line}, 列 {col}: {msg}", file=sys.stderr)
-                            print(f"  >>> {snippet}", file=sys.stderr)
+                            print(f"|  行 {line}, 列 {col}: {msg}", file=sys.stderr)
+                            print(f"|  {snippet}", file=sys.stderr)
+                            indicator = ' ' * (col + 1) + '^'
+                            print(f"|  {indicator}", file=sys.stderr)
                         else:
-                            print(f"  {msg}", file=sys.stderr)
+                            print(f"|  {msg}", file=sys.stderr)
                     else:
                         print(f"  {e}", file=sys.stderr)
                     sys.exit(1)

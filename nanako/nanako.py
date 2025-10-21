@@ -775,14 +775,10 @@ class NanakoParser(object):
         statements = []
         self.consume_whitespace(include_newline=True)
         while self.pos < self.length:
-            try:
-                stmt = self.parse_statement()
-                if stmt:
-                    statements.append(stmt)
-                self.consume_whitespace(include_newline=True)
-            except SyntaxError as e:
-                print(e)
-                self.consume_until_eol()
+            stmt = self.parse_statement()
+            if stmt:
+                statements.append(stmt)
+            self.consume_whitespace(include_newline=True)
         return ProgramNode(statements)
     
     def parse_statement(self, text = None) -> Optional[StatementNode]:
@@ -806,7 +802,7 @@ class NanakoParser(object):
             stmt.source = self.text
             stmt.pos = saved_pos
             stmt.end_pos = self.pos
-            self.consume_eol()
+            self.consume_whitespace(include_newline=True)
             return stmt
         raise SyntaxError(f"ななこの知らない書き方だね！", error_details(self.text, saved_pos))
 
@@ -1165,14 +1161,14 @@ class NanakoParser(object):
         elements = []
         saved_pos = self.pos
         while True:
-            self.consume_whitespace()
+            self.consume_whitespace(include_newline=True)
             if self.consume("]", "】"):
                 break
             expression = self.parse_expression()
             if expression is None:
-                raise SyntaxError(f"何か忘れてます", error_details(self.text, self.pos))
+                raise SyntaxError(f"値を忘れてます", error_details(self.text, self.pos))
             elements.append(expression)
-            self.consume_whitespace()
+            self.consume_whitespace(include_newline=True)
             if self.consume("]", "】"):
                 break
             if not self.consume(",", "、", "，"):
@@ -1307,18 +1303,19 @@ class NanakoParser(object):
 
     
     def consume_whitespace(self, include_newline: bool = False):
-        if include_newline:
-            WS = " 　\t\n\r"
-        else:
-            WS = " 　\t"
         c = 0
         while self.pos < self.length:
-            if self.text[self.pos] in '#＃':
-                self.pos += 1
-                self.consume_until_eol()
-            elif self.text[self.pos] in WS:
+            if self.text[self.pos] in " 　\t\r":
                 self.pos += 1
                 c += 1
+                continue
+            if include_newline and self.text[self.pos] in '#＃':
+                self.consume_until_eol()
+                c = 0
+                continue
+            if include_newline and self.text[self.pos] == '\n':
+                self.pos += 1
+                c = 0
             else:
                 break
         return c

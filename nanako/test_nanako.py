@@ -223,6 +223,13 @@ class TestNanakoParser:
         assert result.elements[0].elements == [1, 2]
         assert result.elements[1].elements == [3, 4]
 
+    def test_parse_array_literal_2d_2(self):
+        """2次元配列のパースをテスト"""
+        expression = self.parser.parse_expression('[\n  [1, 2],\n   [3, 4]\n]')
+        result = expression.evaluate(self.runtime, self.env)
+        assert result.elements[0].elements == [1, 2]
+        assert result.elements[1].elements == [3, 4]
+
     def test_parse_array_literal_string(self):
         """文字列配列のパースをテスト"""
         expression = self.parser.parse_expression('["AB", "CD"]')
