@@ -85,8 +85,9 @@ def main():
 
         if run_interactive:
             env = interactive_mode(env)
-        runtime = NanakoRuntime()
-        print(runtime.stringfy_as_json(env))
+        if len(env) > 0:
+            runtime = NanakoRuntime()
+            print(runtime.stringfy_as_json(env))
     except KeyboardInterrupt:
         print("\n終了します", file=sys.stderr)
         sys.exit(0)
@@ -115,12 +116,14 @@ def interactive_mode(env):
             if code.lower() in ['quit', 'exit']:
                 break
             
-            if code.strip():    
-                runtime = NanakoRuntime()
-                if code == "":
+            code = code.strip()   
+            runtime = NanakoRuntime()
+            runtime.interactive_mode = True
+            if code == "":
+                if len(env) > 0:
                     print(runtime.stringfy_as_json(env))
-                else:
-                    env = runtime.exec(code, env)
+            else:
+                env = runtime.exec(code, env)
         except SyntaxError as e:
             # tracebackでフォーマット
             formatted = traceback.format_exception_only(SyntaxError, e)

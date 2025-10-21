@@ -17,7 +17,8 @@ class NanakoRuntime(object):
         self.compare_count = 0
         self.call_frames = []  # (func_name, args, pos)
         self.shouldStop = False
-        self.timeout = 0 
+        self.timeout = 0
+        self.interactive_mode = False
     
     def push_call_frame(self, func_name: str, args: List[Any], pos: int):
         self.call_frames.append((func_name, args, pos))
@@ -30,7 +31,10 @@ class NanakoRuntime(object):
 
     def print(self, value, source: str, pos: int, end_pos: int):
         source, line, col, snipet = error_details(source, pos)
-        print(f">>> {snipet.strip()}\n{value}")
+        if self.interactive_mode:
+            print(f"{value}")
+        else:
+            print(f">>> {snipet.strip()}\n{value}   #(at line {line})")
 
     def start(self, timeout = 30):
         self.shouldStop = False
