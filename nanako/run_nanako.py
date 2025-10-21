@@ -5,37 +5,70 @@
 """
 
 import sys
-from .nanako import NanakoRuntime
+from .nanako import NanakoRuntime, NanakoError
 import csv
 import json
 import traceback
 
 def main():
     env = {}
-    try:            
+    try:
         run_interactive = True
         for file in sys.argv[1:]:
             if file.endswith('.json'):
-                env.update(load_env_from_json(file))
+                try:
+                    env.update(load_env_from_json(file))
+                except Exception as e:
+                    print(f"エラー ({file}): {e}", file=sys.stderr)
+                    sys.exit(1)
             elif file.endswith('.csv'):
-                env.update(read_csv_as_dict_of_lists(file))
+                try:
+                    env.update(read_csv_as_dict_of_lists(file))
+                except Exception as e:
+                    print(f"エラー ({file}): {e}", file=sys.stderr)
+                    sys.exit(1)
             elif file.endswith('.nanako'):
-                env = run_file(file, env)
-                run_interactive = False
+                try:
+                    env = run_file(file, env)
+                    run_interactive = False
+                except NanakoError as e:
+                    # Nanakoの構文エラーや実行時エラー
+                    print(f"\nエラーが発生しました: {file}", file=sys.stderr)
+                    # エラー詳細を表示
+                    if hasattr(e, 'args') and len(e.args) > 1:
+                        msg, details = e.args[0], e.args[1]
+                        if isinstance(details, tuple) and len(details) >= 4:
+                            source, line, col, snippet = details
+                            print(f"  行 {line}, 列 {col}: {msg}", file=sys.stderr)
+                            print(f"  >>> {snippet}", file=sys.stderr)
+                        else:
+                            print(f"  {msg}", file=sys.stderr)
+                    else:
+                        print(f"  {e}", file=sys.stderr)
+                    sys.exit(1)
+                except Exception as e:
+                    print(f"\nエラーが発生しました: {file}", file=sys.stderr)
+                    traceback.print_exc()
+                    sys.exit(1)
 
         if run_interactive:
             env = interactive_mode(env)
         runtime = NanakoRuntime()
         print(runtime.stringfy_as_json(env))
+    except KeyboardInterrupt:
+        print("\n終了します", file=sys.stderr)
+        sys.exit(0)
     except Exception as e:
         traceback.print_exc()
-        print(f"エラー: {e}")
+        print(f"エラー: {e}", file=sys.stderr)
+        sys.exit(1)
 
 def run_file(filename, env):
     """ファイルを実行"""
     with open(filename, 'r', encoding='utf-8') as f:
-        code = f.read()  
+        code = f.read()
     runtime = NanakoRuntime()
+    # ファイル名情報を持ったままexecする
     env = runtime.exec(code, env)
     return env
 
