@@ -47,7 +47,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "nanako=nanako.run_nanako:main",
+            "nanako=nanako.nanako_cli:main",
         ],
     },
     include_package_data=True,

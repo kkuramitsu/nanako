@@ -12,9 +12,9 @@ from .nanako import (
     NanakoError,
 )
 
-# Import run_nanako to register cell magic
+# Import nanako_cli to register cell magic
 try:
-    from . import run_nanako
+    from . import nanako_cli
 except ImportError:
     pass
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
-ななこ言語のメインランナー
-使用方法: python run_nanako.py [ファイル名]
+ななこ言語のCLIインターフェース
+使用方法: python -m nanako.nanako_cli [ファイル名]
 """
 
 import sys
@@ -28,7 +28,8 @@ def main():
         if len(sys.argv) > 1 and sys.argv[1] in ['--help', '-h']:
             print(f"Nanako (ななこ) version {__version__}")
             print("\n使用方法:")
-            print("  python -m nanako.run_nanako [ファイル名]")
+            print("  python -m nanako.nanako_cli [ファイル名]")
+            print("  nanako [ファイル名]                  # インストール後")
             print("\nオプション:")
             print("  --version, -v, -V    バージョン情報を表示")
             print("  --help, -h           このヘルプメッセージを表示")
@@ -37,9 +38,9 @@ def main():
             print("  .csv       CSVデータファイル（環境変数として読み込み）")
             print("  .json      JSONデータファイル（環境変数として読み込み）")
             print("\n例:")
-            print("  python -m nanako.run_nanako examples/01basic.nanako")
-            print("  python -m nanako.run_nanako data.csv program.nanako")
-            print("  python -m nanako.run_nanako                    # インタラクティブモード")
+            print("  python -m nanako.nanako_cli examples/01basic.nanako")
+            print("  python -m nanako.nanako_cli data.csv program.nanako")
+            print("  python -m nanako.nanako_cli                    # インタラクティブモード")
             sys.exit(0)
 
         run_interactive = True

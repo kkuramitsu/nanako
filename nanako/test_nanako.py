@@ -874,7 +874,6 @@ class TestNanakoExamples:
     # 既知のエラーがあるファイル（修正予定）
     # サンプルファイルのバグや未実装機能により一時的にエラーになるファイル
     KNOWN_ERRORS = {
-        "06sum.nanako": "足し算関数が未定義",
         "09quicksort.nanako": "変数スコープの問題",
         "09rot13.nanako": "配列アクセスの構文エラー",
     }
@@ -1000,7 +999,7 @@ class TestNanakoCLI:
     """nanako CLIコマンドのテストクラス
 
     setup.pyのconsole_scriptsをインストールせずにCLI機能をテストします。
-    python -m nanako.run_nanako の形式で直接実行してテストします。
+    python -m nanako.nanako_cli の形式で直接実行してテストします。
     """
 
     def get_nanako_command(self):
@@ -1009,8 +1008,8 @@ class TestNanakoCLI:
         test_dir = Path(__file__).parent
         project_root = test_dir.parent
 
-        # python -m nanako.run_nanako として実行
-        return ["python3", "-m", "nanako.run_nanako"]
+        # python -m nanako.nanako_cli として実行
+        return ["python3", "-m", "nanako.nanako_cli"]
 
     def test_cli_runs_without_args(self):
         """引数なしで実行（インタラクティブモード起動確認）"""
@@ -1088,10 +1087,10 @@ class TestNanakoCLI:
         assert proc.returncode == 0 or "Nanako" in stdout or "version" in stdout
 
     def test_run_nanako_main_function(self):
-        """run_nanako.mainを直接呼び出してテスト（モジュールAPIとして）"""
+        """nanako_cli.mainを直接呼び出してテスト（モジュールAPIとして）"""
         import sys
         from io import StringIO
-        from nanako.run_nanako import run_file
+        from nanako.nanako_cli import run_file
 
         test_dir = Path(__file__).parent
         project_root = test_dir.parent
@@ -1110,7 +1109,7 @@ class TestNanakoCLI:
 
     def test_csv_loader_function(self):
         """CSV読み込み関数を直接テスト"""
-        from nanako.run_nanako import read_csv_as_dict_of_lists
+        from nanako.nanako_cli import read_csv_as_dict_of_lists
 
         test_dir = Path(__file__).parent
         project_root = test_dir.parent
@@ -1133,7 +1132,7 @@ class TestNanakoCLI:
         """JSON読み込み関数を直接テスト"""
         import tempfile
         import json
-        from nanako.run_nanako import load_env_from_json
+        from nanako.nanako_cli import load_env_from_json
 
         # テスト用のJSONファイルを作成
         test_data = {
@@ -1205,7 +1204,7 @@ y
 
         test_dir = Path(__file__).parent
         project_root = test_dir.parent
-        error_file = project_root / "examples" / "06sum.nanako"
+        error_file = project_root / "examples" / "09quicksort.nanako"
 
         if not error_file.exists():
             pytest.skip("Error example file not found")
@@ -1224,7 +1223,7 @@ y
 
         # エラー出力にファイル名が含まれることを確認
         stderr = proc.stderr
-        assert "06sum.nanako" in stderr, f"ファイル名が表示されていません: {stderr}"
+        assert "09quicksort.nanako" in stderr, f"ファイル名が表示されていません: {stderr}"
         assert "エラーが発生しました" in stderr, f"エラーメッセージが表示されていません: {stderr}"
 
     def test_cli_version_display(self):

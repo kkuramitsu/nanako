@@ -35,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-nanako = "nanako.run_nanako:main"
+nanako = "nanako.nanako_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/kimio/nanako"
