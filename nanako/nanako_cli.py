@@ -14,7 +14,7 @@ import traceback
 try:
     from . import __version__
 except ImportError:
-    __version__ = "unknown"
+    __version__ = "0.2.1"
 
 def main():
     env = {}
