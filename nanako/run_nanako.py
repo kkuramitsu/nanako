@@ -10,9 +10,38 @@ import csv
 import json
 import traceback
 
+# バージョン情報をインポート
+try:
+    from . import __version__
+except ImportError:
+    __version__ = "unknown"
+
 def main():
     env = {}
     try:
+        # バージョン表示の処理
+        if len(sys.argv) > 1 and sys.argv[1] in ['--version', '-v', '-V']:
+            print(f"Nanako (ななこ) version {__version__}")
+            sys.exit(0)
+
+        # ヘルプ表示の処理
+        if len(sys.argv) > 1 and sys.argv[1] in ['--help', '-h']:
+            print(f"Nanako (ななこ) version {__version__}")
+            print("\n使用方法:")
+            print("  python -m nanako.run_nanako [ファイル名]")
+            print("\nオプション:")
+            print("  --version, -v, -V    バージョン情報を表示")
+            print("  --help, -h           このヘルプメッセージを表示")
+            print("\nファイル形式:")
+            print("  .nanako    Nanakoプログラムファイル")
+            print("  .csv       CSVデータファイル（環境変数として読み込み）")
+            print("  .json      JSONデータファイル（環境変数として読み込み）")
+            print("\n例:")
+            print("  python -m nanako.run_nanako examples/01basic.nanako")
+            print("  python -m nanako.run_nanako data.csv program.nanako")
+            print("  python -m nanako.run_nanako                    # インタラクティブモード")
+            sys.exit(0)
+
         run_interactive = True
         for file in sys.argv[1:]:
             if file.endswith('.json'):
@@ -74,7 +103,7 @@ def run_file(filename, env):
 
 def interactive_mode(env):
     """インタラクティブモード"""
-    print("ななこ言語")
+    print(f"Nanako (ななこ) version {__version__}")
     print("終了するには 'quit' または 'exit' を入力してください")
         
     while True:

@@ -1031,7 +1031,7 @@ class TestNanakoCLI:
         stdout, stderr = proc.communicate(input="quit\n", timeout=2)
 
         # エラーなく終了することを確認
-        assert proc.returncode == 0 or "ななこ言語" in stdout
+        assert proc.returncode == 0 or "Nanako" in stdout or "version" in stdout
 
     def test_cli_runs_example_file(self):
         """exampleファイルを実行できることを確認"""
@@ -1085,7 +1085,7 @@ class TestNanakoCLI:
         stdout, stderr = proc.communicate(input="quit\n", timeout=5)
 
         # 正常終了を確認（CSVを読み込んでインタラクティブモードに入る）
-        assert proc.returncode == 0 or "ななこ言語" in stdout
+        assert proc.returncode == 0 or "Nanako" in stdout or "version" in stdout
 
     def test_run_nanako_main_function(self):
         """run_nanako.mainを直接呼び出してテスト（モジュールAPIとして）"""
@@ -1226,6 +1226,49 @@ y
         stderr = proc.stderr
         assert "06sum.nanako" in stderr, f"ファイル名が表示されていません: {stderr}"
         assert "エラーが発生しました" in stderr, f"エラーメッセージが表示されていません: {stderr}"
+
+    def test_cli_version_display(self):
+        """--versionフラグでバージョンが表示されることを確認"""
+        import subprocess
+
+        cmd = self.get_nanako_command() + ["--version"]
+
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        # 正常終了を確認
+        assert proc.returncode == 0
+
+        # バージョン情報が表示されることを確認
+        output = proc.stdout
+        assert "Nanako" in output, f"バージョン情報が表示されていません: {output}"
+        assert "version" in output, f"バージョン番号が表示されていません: {output}"
+
+    def test_cli_help_display(self):
+        """--helpフラグでヘルプが表示されることを確認"""
+        import subprocess
+
+        cmd = self.get_nanako_command() + ["--help"]
+
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        # 正常終了を確認
+        assert proc.returncode == 0
+
+        # ヘルプ情報が表示されることを確認
+        output = proc.stdout
+        assert "使用方法" in output, f"使用方法が表示されていません: {output}"
+        assert "オプション" in output, f"オプションが表示されていません: {output}"
+        assert "version" in output, f"バージョン情報が含まれていません: {output}"
 
 
 if __name__ == '__main__':
