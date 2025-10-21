@@ -4,7 +4,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Nanako (ななこ) is an educational programming language designed for the generative AI era. It demonstrates Turing completeness using minimal operations and teaches programming fundamentals through constrained computation.
+Nanako (ななこ) は、最小構成の構文に基づく教育プログラミング言語です。
+
+## ファイル構成
+
+### Python 実装
+
+Python版がNanakoのマスター実装です。必要に応じて人手メンテしています。
+
+ `nanako/nanako.py` パーサと抽象構文木、評価器
+ `nanako/run_nanako.py` CLIインターフェース
+ `nanako/test_nanako.py テストコード
+
+`setup.py` & `pyproject.toml`: PyPI packaging configuration
+
+### JS 実装
+
+原則、Web ブラウザ上で実装するための nanako.py から移植されたものです。
+
+ html/nanako.js Python版 nanako.py の移植
+ html/nanako.test.js テストコード
+ html/nanako_editor.html Webブラウザ上の実行環境
+
+### サンプルコード
+
+Nanako のサンプルコードは以下にあります。
+
+ examples/*.nanako
 
 ## Key Architecture Components
 
@@ -13,33 +39,23 @@ Nanako (ななこ) is an educational programming language designed for the gener
 - **NanakoRuntime**: Execution environment with operation counting and timeout handling
 - **AST Nodes**: Abstract syntax tree classes inheriting from `ASTNode`
   - Statements: `AssignmentNode`, `IncrementNode`, `DecrementNode`, `IfNode`, `LoopNode`, `ReturnNode`, `TestNode`, `ExpressionStatementNode`
-  - Expressions: `NumberNode`, `VariableNode`, `FunctionNode`, `FuncCallNode`, `ArrayNode`, `StringNode`, `NullNode`, `MinusNonde`, `LenNode`
+  - Expressions: `NumberNode`, `VariableNode`, `FunctionNode`, `FuncCallNode`, `ArrayNode`, `StringNode`, `NullNode`, `MinusNonde`, `ArrayLenNode`
 - **NanakoParser**: Recursive descent parser with Japanese language support
 - **Error Handling**: Custom `NanakoError` with source position tracking
-
-### Language Constraints
-- **Limited Operations**: Only increment, decrement, absolute value, negation
-- **Zero Comparisons Only**: Conditional statements compare against zero using operators (以上, 以下, より大きい, etc.)
-- **Fixed Loops**: N-times repetition or array-length-based iteration
-- **Japanese Syntax**: Natural language constructs like `xを増やす` (increment x), `5回、くり返す` (repeat 5 times)
 
 ## Common Development Commands
 
 ### Running Programs
 ```bash
-python run_nanako.py basic.nanako              # Execute a nanako file
-python run_nanako.py                           # Interactive mode
-python run_nanako.py data.csv program.nanako   # Load CSV data and run program
+python3 run_nanako.py basic.nanako              # Execute a nanako file
+python3 run_nanako.py                           # Interactive mode
+python3 run_nanako.py data.csv program.nanako   # Load CSV data and run program
 ```
 
 ### Testing
 ```bash
-python -m pytest test_nanako.py               # Run full test suite
+python3 -m pytest test_nanako.py               # Run full test suite
 ```
-
-### Example Programs
-- `examples/01basic.nanako`: Basic increment/decrement operations
-- `examples/02loop.nanako`: Loop control examples
 
 ## Implementation Notes
 
@@ -55,15 +71,8 @@ Strings are internally represented as NanakoArray arrays of Unicode code points,
 ### Runtime Execution
 The runtime includes operation counters (`increment_count`, `decrement_count`, `compare_count`) and call frame tracking for debugging and educational analysis.
 
-## File Structure
+## Additional Notes: JavaScript/Web Implementation
 
-### Python Implementation
-- `nanako/nanako.py`: Core interpreter implementation
-- `run_nanako.py`: Command-line runner with file execution and interactive mode
-- `test_nanako.py`: Comprehensive test suite using pytest
-- `setup.py` & `pyproject.toml`: PyPI packaging configuration (version 0.1.1)
-
-### JavaScript/Web Implementation
 - `html/nanako.js`: JavaScript port of Nanako interpreter with AST emit functionality
 - `html/nanako_editor.html`: Web-based Monaco Editor integration with:
   - Real-time code execution and error highlighting
