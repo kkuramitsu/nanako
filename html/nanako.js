@@ -919,16 +919,11 @@ class NanakoParser {
         const statements = [];
         this.consumeWhitespace(true);
         while (this.pos < this.length) {
-            try {
-                const stmt = this.parseStatement();
-                if (stmt) {
-                    statements.push(stmt);
-                }
-                this.consumeWhitespace(true);
-            } catch (e) {
-                console.error(e);
-                this.consumeUntilEol();
+            const stmt = this.parseStatement();
+            if (stmt) {
+                statements.push(stmt);
             }
+            this.consumeWhitespace(true);
         }
         return new ProgramNode(statements);
     }
