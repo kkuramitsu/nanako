@@ -792,17 +792,17 @@ class NanakoParser(object):
         if not stmt:
             stmt = self.parse_AssignmentNode()
         if not stmt:
-            stmt = self.ReturnNode()
+            stmt = self.parse_ReturnNode()
         if stmt:
             stmt.source = self.text
             stmt.pos = saved_pos
             stmt.end_pos = self.pos
             self.consume_eol()
             return stmt
-        raise SyntaxError(f"ななこの知らない書き方！", error_details(self.text, saved_pos))
+        raise SyntaxError(f"ななこの知らない書き方だね！", error_details(self.text, saved_pos))
 
     def parse_TestNode(self) -> StatementNode:
-        """ドキュテストをパース"""
+        """テストケースをパース"""
         saved_pos = self.pos
         if not self.consume_string(">>>"):
             self.pos = saved_pos
@@ -822,7 +822,7 @@ class NanakoParser(object):
         """代入文をパース"""
         saved_pos = self.pos
 
-        variable : VariableNode = self.parse_VariableNode()
+        variable : VariableNode = self.parse_VariableNode(definition_context=True)
         if variable is None:
             self.pos = saved_pos
             return None
@@ -935,7 +935,7 @@ class NanakoParser(object):
             raise SyntaxError("何をくり返すの？ { }で囲んでね！", error_details(self.text, self.pos))
         return LoopNode(count, body)
     
-    def ReturnNode(self) -> ReturnNode:
+    def parse_ReturnNode(self) -> ReturnNode:
         saved_pos = self.pos
         expression = self.parse_expression()
         if expression:
@@ -1177,9 +1177,9 @@ class NanakoParser(object):
             return NullNode()
         return None
 
-    def parse_VariableNode(self) -> VariableNode:
+    def parse_VariableNode(self, definition_context = False) -> VariableNode:
         """変数をパース"""
-        name = self.parse_name()
+        name = self.parse_name(definition_context=definition_context)
         if name is None:
             return None
 
@@ -1224,6 +1224,21 @@ class NanakoParser(object):
     def parse_name(self, definition_context: bool = False) -> str:
         """識別子をパース"""
         saved_pos = self.pos
+        if definition_context:
+            while self.pos < self.length:
+                char = self.text[self.pos]
+                if char in " \t\n\r,=[](){}#　＝＃、，【】（）｛｝":
+                    break
+                if char in "にをの":
+                    remaining = self.text[self.pos:]
+                    if remaining.startswith("に対し") or remaining.startswith("を増やす") or remaining.startswith("を減らす") or remaining.startswith("の末尾に"):
+                        break
+                self.pos += 1
+            name = self.text[saved_pos:self.pos].strip()
+            if len(name) > 0:
+                return name
+            return None
+
         if self.consume(*self.variables):
             return self.text[saved_pos:self.pos]
         elif not self.consume_alpha():
@@ -1244,7 +1259,7 @@ class NanakoParser(object):
     def is_keywords(self) -> bool:
         # 除外キーワードチェック
         remaining = self.text[self.pos:]
-        for kw in ["くり返す", "を", "回", "とする", "が", "ならば", "に対し", "の末尾に", "を増やす"]:
+        for kw in ["を", "とする", "が", "ならば", "に対し", "の末尾に", "を増やす"]:
             if remaining.startswith(kw):
                 return True
         return False

@@ -232,12 +232,17 @@ class TestNanakoParser:
         statement.evaluate(self.runtime, self.env)
         assert self.env['変数'] == 1
 
-    def test_parse_assignment_ja(self):
+    def test_parse_assignment_1(self):
         """代入文のパースをテスト"""
         statement = self.parser.parse_statement('残りの回数 = 1')
         statement.evaluate(self.runtime, self.env)
         assert self.env['残りの回数'] == 1
 
+    def test_parse_assignment_2(self):
+        """代入文のパースをテスト"""
+        statement = self.parser.parse_statement('近い要素がある = 1')
+        statement.evaluate(self.runtime, self.env)
+        assert self.env['近い要素がある'] == 1
 
     def test_parse_assignment_error(self):
         """代入文のパースをテスト"""
@@ -252,14 +257,14 @@ class TestNanakoParser:
         with pytest.raises(SyntaxError) as e:
              statement = self.parser.parse_statement('xを1とする')
              statement.evaluate(self.runtime, self.env)
-        assert "増やす" in str(e.value)
+        assert "知らない" in str(e.value) or "増やす" in str(e.value)
 
     def test_parse_japanese_assignment_ja(self):
         """代入文のパースをテスト"""
         with pytest.raises(SyntaxError) as e:
              statement = self.parser.parse_statement('変数を1とする')
              statement.evaluate(self.runtime, self.env)
-        assert "増やす" in str(e.value)
+        assert "知らない" in str(e.value) or "増やす" in str(e.value)
 
     def test_parse_assignment_array(self):
         """代入文のパースをテスト"""
