@@ -1011,7 +1011,7 @@ class NanakoParser(object):
             self.pos = saved_pos
             return None
 
-    def parse_StringNode(self) -> ArrayNode:
+    def parse_StringNode(self) -> StringNode:
         """文字列リテラルをパース"""
         saved_pos = self.pos
         
@@ -1046,6 +1046,21 @@ class NanakoParser(object):
         if not self.consume('"', "“", "”"):
             self.pos = saved_pos
             raise SyntaxError(f"閉じ`\"`を忘れないで", error_details(self.text, saved_pos))
+
+        # 文字コードを取り出す
+        if self.consume("[", "【"):
+            self.consume_whitespace()
+            number = self.parse_NumberNode()
+            if number is None:
+                raise SyntaxError(f"添え字を忘れているよ", error_details(self.text, self.pos))
+            self.consume_whitespace()
+            if not self.consume("]", "】"):
+                raise SyntaxError(f"閉じ`]`を忘れないで", error_details(self.text, self.pos))
+            if len(string_content) == 0:
+                raise SyntaxError(f"空の文字列に添え字は使えません", error_details(self.text, self.pos))
+            if not (0 <= int(number.value) < len(string_content)):
+                raise SyntaxError(f"添え字は0から{len(string_content)-1}の間ですよ: ❌{number.value}", error_details(self.text, self.pos))
+            return NumberNode(ord(string_content[int(number.value)]))
 
         return StringNode(''.join(string_content))
 
