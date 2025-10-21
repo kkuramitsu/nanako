@@ -240,17 +240,19 @@ class TestNanakoParser:
         assert "忘" in str(e.value)
 
 
-    # def test_parse_japanese_assignment(self):
-    #     """代入文のパースをテスト"""
-    #     statement = self.parser.parse_statement('xを1とする')
-    #     statement.evaluate(self.runtime, self.env)
-    #     assert self.env['x'] == 1
+    def test_parse_japanese_assignment(self):
+        """代入文のパースをテスト"""
+        with pytest.raises(SyntaxError) as e:
+             statement = self.parser.parse_statement('xを1とする')
+             statement.evaluate(self.runtime, self.env)
+        assert "増やす" in str(e.value)
 
-    # def test_parse_japanese_assignment_ja(self):
-    #     """代入文のパースをテスト"""
-    #     statement = self.parser.parse_statement('変数を1とする')
-    #     statement.evaluate(self.runtime, self.env)
-    #     assert self.env['変数'] == 1
+    def test_parse_japanese_assignment_ja(self):
+        """代入文のパースをテスト"""
+        with pytest.raises(SyntaxError) as e:
+             statement = self.parser.parse_statement('変数を1とする')
+             statement.evaluate(self.runtime, self.env)
+        assert "増やす" in str(e.value)
 
     def test_parse_assignment_array(self):
         """代入文のパースをテスト"""
@@ -365,7 +367,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0ならば、 {
-                xを1とする
+                x=1
             }''')
         self.env['x'] = 0
         statement.evaluate(self.runtime, self.env)
@@ -386,9 +388,9 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0ならば、 {
-                xを1とする
+                x=1
             } そうでなければ、 {
-                xを2とする
+                x=2
             }''')
         self.env['x'] = 0
         statement.evaluate(self.runtime, self.env)
@@ -398,10 +400,10 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0ならば、 {
-                xを1とする
+                x=1
             } 
             そうでなければ、 {
-                xを2とする
+                x=2
             }''')
         self.env['x'] = 1
         statement.evaluate(self.runtime, self.env)
@@ -411,7 +413,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0以外ならば、 {
-                xを0とする
+                x=0
             }''')
         self.env['x'] = 1
         statement.evaluate(self.runtime, self.env)
@@ -421,7 +423,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0以上ならば、 {
-                xを-1とする
+                x=-1
             }''')
         self.env['x'] = 0
         statement.evaluate(self.runtime, self.env)
@@ -431,7 +433,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0より大きいならば、 {
-                xを-1とする
+                x=-1
             }''')
         self.env['x'] = 1
         statement.evaluate(self.runtime, self.env)
@@ -441,7 +443,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0より大きいならば、 {
-                xを-1とする
+                x=-1
             }''')
         self.env['x'] = 0
         statement.evaluate(self.runtime, self.env)
@@ -451,7 +453,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0以下ならば、 {
-                xを1とする
+                x=1
             }''')
         self.env['x'] = 0
         statement.evaluate(self.runtime, self.env)
@@ -461,7 +463,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0より小さいならば、 {
-                xを1とする
+                x=1
             }''')
         self.env['x'] = -1
         statement.evaluate(self.runtime, self.env)
@@ -471,7 +473,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0より小さいならば、 {
-                xを1とする
+                x=1
             }''')
         self.env['x'] = 0
         statement.evaluate(self.runtime, self.env)
@@ -481,7 +483,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0未満ならば、 {
-                xを1とする
+                x=1
             }''')
         self.env['x'] = -1
         statement.evaluate(self.runtime, self.env)
@@ -491,7 +493,7 @@ class TestNanakoParser:
         """if文のパースをテスト"""
         statement = self.parser.parse_statement('''
             もしxが0未満ならば、 {
-                xを1とする
+                x=1
             }''')
         self.env['x'] = 0
         statement.evaluate(self.runtime, self.env)

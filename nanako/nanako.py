@@ -743,11 +743,12 @@ class NanakoParser(object):
     def __init__(self):
         self.init_text("")
 
-    def init_text(self, text: str):
+    def init_text(self, text: str, reset_variables: bool = True):
         self.text = self.normalize(text)
         self.pos = 0
         self.length = len(text)
-        self.variables = [] 
+        if reset_variables:
+            self.variables = []
 
     def normalize(self, text: str) -> str:
         text = text.replace('“”', '"').replace('”', '"')
@@ -785,13 +786,13 @@ class NanakoParser(object):
 
         stmt = self.parse_IfNode()
         if not stmt:
-            stmt = self.parse_loop_statement()
+            stmt = self.LoopNode()
         if not stmt:
-            stmt = self.parse_doctest()
+            stmt = self.parse_TestNode()
         if not stmt:
-            stmt = self.parse_assignment()
+            stmt = self.parse_AssignmentNode()
         if not stmt:
-            stmt = self.parse_return()
+            stmt = self.ReturnNode()
         if stmt:
             stmt.source = self.text
             stmt.pos = saved_pos
@@ -800,7 +801,7 @@ class NanakoParser(object):
             return stmt
         raise SyntaxError(f"ななこの知らない書き方！", error_details(self.text, saved_pos))
 
-    def parse_doctest(self) -> StatementNode:
+    def parse_TestNode(self) -> StatementNode:
         """ドキュテストをパース"""
         saved_pos = self.pos
         if not self.consume_string(">>>"):
@@ -817,7 +818,7 @@ class NanakoParser(object):
             raise SyntaxError(f"`>>>` の次の行には正解が必要です", error_details(self.text, self.pos))
         return TestNode(expression, answer_expression)
 
-    def parse_assignment(self) -> AssignmentNode:
+    def parse_AssignmentNode(self) -> AssignmentNode:
         """代入文をパース"""
         saved_pos = self.pos
 
@@ -845,15 +846,7 @@ class NanakoParser(object):
                 return IncrementNode(variable)
             if self.consume_string("減らす"):
                 return DecrementNode(variable)
-
-            expression = self.parse_expression()
-            if expression is None:
-                raise SyntaxError(f"ここに何か忘れてません？", error_details(self.text, self.pos))
-
-            # オプションの "とする"
-            self.consume_whitespace()
-            self.consume_string("とする")
-            return AssignmentNode(variable, expression)
+            raise SyntaxError(f"`増やす`か`減らす`かどちら？", error_details(self.text, self.pos))
 
         # "="
         if self.consume("=", "＝"):
@@ -923,7 +916,7 @@ class NanakoParser(object):
             raise SyntaxError("「そうでなければ」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
         return block
 
-    def parse_loop_statement(self) -> LoopNode:
+    def LoopNode(self) -> LoopNode:
         """ループ文をパース"""
         saved_pos = self.pos
         count = self.parse_expression()
@@ -942,7 +935,7 @@ class NanakoParser(object):
             raise SyntaxError("何をくり返すの？ { }で囲んでね！", error_details(self.text, self.pos))
         return LoopNode(count, body)
     
-    def parse_return(self) -> ReturnNode:
+    def ReturnNode(self) -> ReturnNode:
         saved_pos = self.pos
         expression = self.parse_expression()
         if expression:
@@ -953,10 +946,10 @@ class NanakoParser(object):
                 return ExpressionStatementNode(expression)
         self.pos = saved_pos
         return None
-    
+
     def parse_expression(self, text=None) -> ExpressionNode:
         if text is not None:
-            self.init_text(text)
+            self.init_text(text, reset_variables=False)
             
         """式をパース"""
         self.consume_whitespace()
