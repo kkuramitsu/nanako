@@ -1,0 +1,19 @@
+{
+  "name": "nanako-js-tests",
+  "version": "1.0.0",
+  "description": "Jest tests for Nanako JavaScript implementation",
+  "main": "nanako.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "testEnvironment": "node",
+  "jest": {
+    "testMatch": ["**/*.test.js"],
+    "verbose": true
+  }
+}
