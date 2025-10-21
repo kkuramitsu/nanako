@@ -1080,28 +1080,40 @@ result`,
         }
 
         function parseErrorPosition(error, code) {
-            let line = 1;
-            let column = 1;
-            
-            // Try to extract position from error details
-            if (error.details && error.details.line) {
-                return { line: error.details.line, column: error.details.col || 1 };
+            // NanakoError has line/col properties set directly
+            if (typeof error.line === 'number' && error.line > 0) {
+                return {
+                    line: error.line,
+                    column: error.col || 1
+                };
             }
-            
+
+            // Try error.details object
+            if (error.details && typeof error.details.line === 'number') {
+                return {
+                    line: error.details.line,
+                    column: error.details.col || 1
+                };
+            }
+
             // Try to extract line number from error message
             const lineMatch = error.message.match(/line (\d+)/i);
             if (lineMatch) {
-                return { line: parseInt(lineMatch[1]), column: 1 };
+                return {
+                    line: parseInt(lineMatch[1]),
+                    column: 1
+                };
             }
-            
+
             // If error has pos property, calculate line from position
             if (typeof error.pos === 'number') {
                 const lines = code.substring(0, error.pos).split('\n');
-                line = lines.length;
-                column = lines[lines.length - 1].length + 1;
+                const line = lines.length;
+                const column = lines[lines.length - 1].length + 1;
                 return { line, column };
             }
-            
+
+            // Default fallback
             return { line: 1, column: 1 };
         }
 
