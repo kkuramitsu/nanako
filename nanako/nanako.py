@@ -107,6 +107,12 @@ class NanakoArray(object):
     def __repr__(self):
         return self.emit("js", "")
 
+    def __eq__(self, other):
+        if isinstance(other, NanakoArray):
+            return self.elements == other.elements
+        return False
+
+
 def transform_array(values):
     if isinstance(values, (list, tuple)):
         return NanakoArray(values)
