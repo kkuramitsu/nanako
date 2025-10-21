@@ -232,6 +232,13 @@ class TestNanakoParser:
         statement.evaluate(self.runtime, self.env)
         assert self.env['変数'] == 1
 
+    def test_parse_assignment_ja(self):
+        """代入文のパースをテスト"""
+        statement = self.parser.parse_statement('残りの回数 = 1')
+        statement.evaluate(self.runtime, self.env)
+        assert self.env['残りの回数'] == 1
+
+
     def test_parse_assignment_error(self):
         """代入文のパースをテスト"""
         with pytest.raises(SyntaxError) as e:
