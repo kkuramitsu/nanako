@@ -78,10 +78,11 @@ class NanakoArray(object):
         if isinstance(values, str):
             self.elements = [ord(ch) for ch in values]
             self.is_string_view = True
-        else:
+        elif isinstance(values, (list, tuple)):
             self.elements = [transform_array(v) for v in values]
             self.is_string_view = False
-
+        else:
+            raise ValueError(f"NanakoArrayには文字列か配列を渡してください ❌{values}")
 
     def emit(self, lang="js", indent:str = "") -> str:
         if self.is_string_view:
@@ -118,10 +119,8 @@ class NanakoArray(object):
 
 
 def transform_array(values):
-    if isinstance(values, (list, tuple)):
+    if isinstance(values, (list, str, tuple)):
         return NanakoArray(values)
-    if isinstance(values, str):
-        return NanakoArray(str)
     if isinstance(values, dict):
         for key, value in values.items():
             values[key] = transform_array(value)

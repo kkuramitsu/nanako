@@ -53,7 +53,8 @@ def main():
                     sys.exit(1)
             elif file.endswith('.csv'):
                 try:
-                    env.update(read_csv_as_dict_of_lists(file))
+                    data = read_csv_as_dict_of_lists(file)
+                    env.update(data)
                 except Exception as e:
                     print(f"エラー ({file}): {e}", file=sys.stderr)
                     sys.exit(1)
@@ -165,7 +166,11 @@ def read_csv_as_dict_of_lists(filename):
             result[key] = []
         for row in reader:
             for key in reader.fieldnames:
-                result[key].append(row[key])
+                try:
+                    value = int(row[key])
+                except ValueError:
+                    value = str(row[key])
+                result[key].append(value)
     return result
 
 try:
