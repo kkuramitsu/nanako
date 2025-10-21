@@ -88,6 +88,20 @@ class TestNanakoParser:
         result = expression.evaluate(self.runtime, self.env)
         assert result == 1
 
+    def test_parse_japanese_variable4(self):
+        """日本語の変数名のパースをテスト"""
+        expression = self.parser.parse_expression('配列の末尾に要素を追加する')
+        self.env['配列'] = 1
+        result = expression.evaluate(self.runtime, self.env)
+        assert result == 1
+
+    def test_parse_japanese_variable5(self):
+        """日本語の変数名のパースをテスト"""
+        expression = self.parser.parse_expression('差分に対し')
+        self.env['差分'] = 1
+        result = expression.evaluate(self.runtime, self.env)
+        assert result == 1
+
     def test_parse_variable_index(self):
         """変数のインデックスアクセスのパースをテスト"""
         expression = self.parser.parse_expression('x[0]')
@@ -329,6 +343,23 @@ class TestNanakoParser:
             self.env['x'] = [1, 1]
             statement.evaluate(self.runtime, self.env)
         assert "数" in str(e.value)
+
+    def test_parse_append_number(self):
+        """アペンドのパースをテスト"""
+        with pytest.raises(SyntaxError) as e:
+            statement = self.parser.parse_statement('xの末尾に1を追加する')
+            self.env['x'] = 1
+            statement.evaluate(self.runtime, self.env)
+        assert "配列" in str(e.value)
+
+    def test_parse_append_array(self):
+        """アペンドのパースをテスト"""
+        statement = self.parser.parse_statement('xの末尾に1を追加する')
+        self.env['x'] = []
+        self.env = self.runtime.transform_array(self.env)
+        statement.evaluate(self.runtime, self.env)
+        assert len(self.env['x'].elements) == 1
+        assert self.env['x'].elements[0] == 1
 
     def test_parse_if_statement(self):
         """if文のパースをテスト"""
@@ -755,7 +786,7 @@ EMIT_NANAKO = """
             buf[0] = 数列[i]
         }
         そうでなければ、{
-            buf[?] = 数列[i]
+            bufの末尾に数列[i]を追加する
         }
         ?回くり返す {
             sum = -sum

@@ -278,7 +278,7 @@ class NumberNode(ExpressionNode):
 
 
 @dataclass
-class LenNode(ExpressionNode):
+class ArrayLenNode(ExpressionNode):
     element: ExpressionNode
 
     def __init__(self, element: ExpressionNode):
@@ -514,9 +514,11 @@ class AppendNode(StatementNode):
         self.expression = expression
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
+        array = self.variable.evaluate(runtime, env)
+        if not isinstance(array, NanakoArray):
+            raise NanakoError(f"配列じゃないね？ ❌{array}", self.variable.error_details())
         value = self.expression.evaluate(runtime, env)
-        self.variable.evaluate_with(runtime, env, value)
-        runtime.update_variable(self.variable.name, env, self.source, self.pos)
+        array.elements.append(value)
 
     def emit(self, lang="js", indent:str = "") -> str:
         variable = self.variable.emit(lang, indent)
@@ -781,7 +783,7 @@ class NanakoParser(object):
         self.consume_whitespace(include_newline=True)
         saved_pos = self.pos
 
-        stmt = self.parse_if_statement()
+        stmt = self.parse_IfNode()
         if not stmt:
             stmt = self.parse_loop_statement()
         if not stmt:
@@ -819,7 +821,7 @@ class NanakoParser(object):
         """代入文をパース"""
         saved_pos = self.pos
 
-        variable : VariableNode = self.parse_variable()
+        variable : VariableNode = self.parse_VariableNode()
         if variable is None:
             self.pos = saved_pos
             return None
@@ -866,7 +868,7 @@ class NanakoParser(object):
         self.pos = saved_pos
         return None
     
-    def parse_if_statement(self) -> IfNode:
+    def parse_IfNode(self) -> IfNode:
         """if文をパース"""
         saved_pos = self.pos
 
@@ -959,23 +961,23 @@ class NanakoParser(object):
         """式をパース"""
         self.consume_whitespace()
         saved_pos = self.pos
-        expression = self.parse_integer()
+        expression = self.parse_NumberNode()
         if not expression:
-            expression = self.parse_string()
+            expression = self.parse_StringNode()
         if not expression:
-            expression = self.parse_len()
+            expression = self.parse_ArrayLenNode()
         if not expression:
-            expression = self.parse_minus()
+            expression = self.parse_MinusNode()
         if not expression:
-            expression = self.parse_function()
+            expression = self.parse_FunctionNode()
         if not expression:
-            expression = self.parse_arraylist()
+            expression = self.parse_ArrayNode()
         if not expression:
-            expression = self.parse_null()
+            expression = self.parse_NullNode()
         if not expression:
-            expression = self.parse_funccall()
+            expression = self.parse_FuncCallNode()
         if not expression:
-            expression = self.parse_variable()
+            expression = self.parse_VariableNode()
 
         if expression:
             if self.consume("+", "-", "*", "/", "%", "＋", "ー", "＊", "／", "％", "×", "÷"):
@@ -989,7 +991,7 @@ class NanakoParser(object):
         return None
                     
 
-    def parse_integer(self) -> NumberNode:
+    def parse_NumberNode(self) -> NumberNode:
         """整数をパース"""
         saved_pos = self.pos
         if not self.consume_digit():
@@ -1011,7 +1013,7 @@ class NanakoParser(object):
             self.pos = saved_pos
             return None
 
-    def parse_string(self) -> ArrayNode:
+    def parse_StringNode(self) -> ArrayNode:
         """文字列リテラルをパース"""
         saved_pos = self.pos
         
@@ -1049,7 +1051,7 @@ class NanakoParser(object):
 
         return StringNode(''.join(string_content))
 
-    def parse_minus(self) -> MinusNode:
+    def parse_MinusNode(self) -> MinusNode:
         """整数をパース"""
         saved_pos = self.pos
         
@@ -1063,7 +1065,7 @@ class NanakoParser(object):
             raise SyntaxError(f"`-`の次に何か忘れてない？", error_details(self.text, self.pos))
         return MinusNode(element)        
 
-    def parse_len(self) -> LenNode:
+    def parse_ArrayLenNode(self) -> ArrayLenNode:
         """絶対値または長さをパース"""
         saved_pos = self.pos
         if not self.consume("|", "｜"):
@@ -1077,9 +1079,9 @@ class NanakoParser(object):
         self.consume_whitespace()
         if not self.consume("|", "｜"):
             raise SyntaxError(f"閉じ`|`を忘れないで", error_details(self.text, self.pos))
-        return LenNode(element)
+        return ArrayLenNode(element)
 
-    def parse_function(self) -> FunctionNode:
+    def parse_FunctionNode(self) -> FunctionNode:
         """関数をパース"""
         saved_pos = self.pos
         # "λ" または "入力"
@@ -1092,12 +1094,12 @@ class NanakoParser(object):
         # パラメータ
         parameters = []
         while True:
-            identifier = self.parse_identifier()
-            if identifier is None:
+            name = self.parse_name(definition_context=True)
+            if name is None:
                 raise SyntaxError(f"変数名が必要", error_details(self.text, self.pos))
-            if identifier in parameters:
-                raise SyntaxError(f"同じ変数名を使っているよ: ❌'{identifier}'", error_details(self.text, self.pos))
-            parameters.append(identifier)
+            if name in parameters:
+                raise SyntaxError(f"同じ変数名を使っているよ: ❌'{name}'", error_details(self.text, self.pos))
+            parameters.append(name)
             self.consume_whitespace()
             if not self.consume(",", "、"):
                 break
@@ -1111,16 +1113,19 @@ class NanakoParser(object):
             raise SyntaxError(f"`に対し`が必要", error_details(self.text, self.pos))
         self.consume_string("て")
         self.consume_comma()
+        saved_variables = self.variables.copy()
+        self.variables = self.variables + parameters
         body = self.parse_block()
+        self
         
         if body is None:
             raise SyntaxError("関数の本体は？ { }で囲んでね！", error_details(self.text, self.pos))
         return FunctionNode(parameters, body)
     
-    def parse_funccall(self) -> FuncCallNode:
+    def parse_FuncCallNode(self) -> FuncCallNode:
         """関数呼び出しをパース"""
         saved_pos = self.pos
-        name = self.parse_identifier()
+        name = self.parse_name()
         if name is None:
             self.pos = saved_pos
             return None
@@ -1147,7 +1152,7 @@ class NanakoParser(object):
 
         return FuncCallNode(name, arguments)
     
-    def parse_arraylist(self) -> ArrayNode:
+    def parse_ArrayNode(self) -> ArrayNode:
         """配列をパース"""
         saved_pos = self.pos
          # "[" で始まる
@@ -1173,15 +1178,15 @@ class NanakoParser(object):
 
         return ArrayNode(elements)
     
-    def parse_null(self) -> NullNode:
+    def parse_NullNode(self) -> NullNode:
         """null値をパース"""
         if self.consume("null", "?", "？"):
             return NullNode()
         return None
 
-    def parse_variable(self) -> VariableNode:
+    def parse_VariableNode(self) -> VariableNode:
         """変数をパース"""
-        name = self.parse_identifier()
+        name = self.parse_name()
         if name is None:
             return None
 
@@ -1222,8 +1227,8 @@ class NanakoParser(object):
             raise SyntaxError("閉じ `}`を忘れないで", error_details(self.text, saved_pos))
 
         return BlockNode(statements)
-    
-    def parse_identifier(self) -> str:
+
+    def parse_name(self, definition_context: bool = False) -> str:
         """識別子をパース"""
         saved_pos = self.pos
         if self.consume(*self.variables):
