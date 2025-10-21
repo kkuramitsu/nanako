@@ -75,6 +75,7 @@ class NanakoRuntime {
         this.shouldStop = false;
         this.timeout = 0;
         this.startTime = 0;
+        this.interactiveMode = false;
     }
 
     pushCallFrame(funcName, args, pos) {
@@ -91,7 +92,11 @@ class NanakoRuntime {
 
     print(value, source, pos, endPos) {
         const details = errorDetails(source, pos);
-        console.log(`>>> ${details.lineText.trim()}\n${value}`);
+        if (this.interactiveMode) {
+            console.log(`${value}`);
+        } else {
+            console.log(`>>> ${details.lineText.trim()}\n${value}   #(at line ${details.line})`);
+        }
     }
 
     start(timeout = 30) {
@@ -181,6 +186,27 @@ class NanakoArray {
 
     toString() {
         return this.emit("js", "");
+    }
+
+    equals(other) {
+        if (other instanceof NanakoArray) {
+            if (this.elements.length !== other.elements.length) {
+                return false;
+            }
+            for (let i = 0; i < this.elements.length; i++) {
+                const a = this.elements[i];
+                const b = other.elements[i];
+                if (a instanceof NanakoArray && b instanceof NanakoArray) {
+                    if (!a.equals(b)) {
+                        return false;
+                    }
+                } else if (a !== b) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 }
 
@@ -1248,6 +1274,27 @@ class NanakoParser {
             throw new SyntaxError("閉じ`\"`を忘れないで", this.errorDetails(savedPos));
         }
 
+        // 文字コードを取り出す
+        if (this.consume("[", "【")) {
+            this.consumeWhitespace();
+            const number = this.parseInteger();
+            if (number === null) {
+                throw new SyntaxError("添え字を忘れているよ", this.errorDetails(this.pos));
+            }
+            this.consumeWhitespace();
+            if (!this.consume("]", "】")) {
+                throw new SyntaxError("閉じ`]`を忘れないで", this.errorDetails(this.pos));
+            }
+            if (stringContent.length === 0) {
+                throw new SyntaxError("空の文字列に添え字は使えません", this.errorDetails(this.pos));
+            }
+            const index = number.value;
+            if (!(0 <= index && index < stringContent.length)) {
+                throw new SyntaxError(`添え字は0から${stringContent.length-1}の間ですよ: ❌${index}`, this.errorDetails(this.pos));
+            }
+            return new NumberNode(stringContent[index].charCodeAt(0));
+        }
+
         return new StringNode(stringContent.join(''));
     }
 
@@ -1384,16 +1431,16 @@ class NanakoParser {
         const elements = [];
         const savedPos2 = this.pos;
         while (true) {
-            this.consumeWhitespace();
+            this.consumeWhitespace(true);  // include newlines
             if (this.consume("]", "】")) {
                 break;
             }
             const expression = this.parseExpression();
             if (expression === null) {
-                throw new SyntaxError("何か忘れてます", this.errorDetails(this.pos));
+                throw new SyntaxError("値を忘れてます", this.errorDetails(this.pos));
             }
             elements.push(expression);
-            this.consumeWhitespace();
+            this.consumeWhitespace(true);  // include newlines
             if (this.consume("]", "】")) {
                 break;
             }

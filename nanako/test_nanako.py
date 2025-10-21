@@ -305,22 +305,6 @@ class TestNanakoParser:
         statement.evaluate(self.runtime, self.env)
         assert self.env['変数'].elements == [1]
 
-    # def test_parse_japanese_assignment_array(self):
-    #     """代入文のパースをテスト"""
-    #     statement = self.parser.parse_statement('x[0]を1とする')
-    #     self.env['x'] = NanakoArray([0])
-    #     self.env = self.runtime.transform_array(self.env)
-    #     statement.evaluate(self.runtime, self.env)
-    #     assert self.env['x'].elements == [1]
-
-    # def test_parse_japanese_assignment_array_ja(self):
-    #     """代入文のパースをテスト"""
-    #     statement = self.parser.parse_statement('変数[0]を1とする')
-    #     self.env['変数'] = [0]
-    #     self.env = self.runtime.transform_array(self.env)
-    #     statement.evaluate(self.runtime, self.env)
-    #     assert self.env['変数'].elements == [1]
-
     def test_parse_increment(self):
         """インクリメントのパースをテスト"""
         statement = self.parser.parse_statement('xを増やす')
@@ -557,7 +541,6 @@ class TestNanakoParser:
             statement.evaluate(self.runtime, self.env)
         assert "ななこ" in str(e.value)
 
-
     def test_parse_doctest_pass(self):
         """doctest"""
         statement = self.parser.parse_statement('''
@@ -567,6 +550,16 @@ class TestNanakoParser:
         self.env['x'] = 0
         statement.evaluate(self.runtime, self.env)
         assert self.env['x'] == 0
+
+    def test_parse_doctest_pass2(self):
+        """doctest"""
+        statement = self.parser.parse_statement('''
+            x = [1,2]
+            >>> x
+            [1, 2]
+            ''')
+        statement.evaluate(self.runtime, self.env)
+        assert 'x' in self.env
 
     def test_parse_doctest_fail(self):
         """doctest"""

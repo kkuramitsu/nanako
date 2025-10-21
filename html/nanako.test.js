@@ -174,6 +174,12 @@ class TestNanakoParser {
         }).toThrow(/閉/);
     }
 
+    testParseCharactorLiteral() {
+        const expression = this.parser.parseExpression('"A"[0]');
+        const result = expression.evaluate(this.runtime, this.env);
+        expect(result).toBe(65);
+    }
+
     testParseArrayLiteral() {
         const expression = this.parser.parseExpression('[1, 2, 3]');
         const result = expression.evaluate(this.runtime, this.env);
@@ -202,6 +208,13 @@ class TestNanakoParser {
 
     testParseArrayLiteral2d() {
         const expression = this.parser.parseExpression('[[1, 2], [3, 4]]');
+        const result = expression.evaluate(this.runtime, this.env);
+        expect(result.elements[0].elements).toEqual([1, 2]);
+        expect(result.elements[1].elements).toEqual([3, 4]);
+    }
+
+    testParseArrayLiteral2d2() {
+        const expression = this.parser.parseExpression('[\n  [1, 2],\n   [3, 4]\n]');
         const result = expression.evaluate(this.runtime, this.env);
         expect(result.elements[0].elements).toEqual([1, 2]);
         expect(result.elements[1].elements).toEqual([3, 4]);
@@ -513,6 +526,16 @@ class TestNanakoParser {
         this.env.x = 0;
         statement.evaluate(this.runtime, this.env);
         expect(this.env.x).toBe(0);
+    }
+
+    testParseDoctestPass2() {
+        const statement = this.parser.parseStatement(`
+            x = [1,2]
+            >>> x
+            [1, 2]
+            `);
+        statement.evaluate(this.runtime, this.env);
+        expect('x' in this.env).toBe(true);
     }
 
     testParseDoctestFail() {
@@ -845,11 +868,13 @@ describe('NanakoParser', () => {
     test('parse zenkaku string', () => testInstance.testParseZenkakuString());
     test('parse string literal empty', () => testInstance.testParseStringLiteralEmpty());
     test('parse string literal unclosed', () => testInstance.testParseStringLiteralUnclosed());
+    test('parse charactor literal', () => testInstance.testParseCharactorLiteral());
     test('parse array literal', () => testInstance.testParseArrayLiteral());
     test('parse array literal trailing comma', () => testInstance.testParseArrayLiteralTrailingComma());
     test('parse array literal no comma', () => testInstance.testParseArrayLiteralNoComma());
     test('parse array literal unclosed', () => testInstance.testParseArrayLiteralUnclosed());
     test('parse array literal 2d', () => testInstance.testParseArrayLiteral2d());
+    test('parse array literal 2d 2', () => testInstance.testParseArrayLiteral2d2());
     test('parse array literal string', () => testInstance.testParseArrayLiteralString());
     test('parse assignment', () => testInstance.testParseAssignment());
     test('parse assignment ja', () => testInstance.testParseAssignmentJa());
@@ -885,6 +910,7 @@ describe('NanakoParser', () => {
     test('parse expression', () => testInstance.testParseExpression());
     test('parse statement error', () => testInstance.testParseStatementError());
     test('parse doctest pass', () => testInstance.testParseDoctestPass());
+    test('parse doctest pass 2', () => testInstance.testParseDoctestPass2());
     test('parse doctest fail', () => testInstance.testParseDoctestFail());
 });
 
