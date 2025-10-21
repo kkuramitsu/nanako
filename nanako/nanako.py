@@ -379,8 +379,12 @@ class FuncCallNode(ExpressionNode):
         self.arguments = arguments
 
     def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
-        if self.name in env:
-            function = env[self.name]
+        if not self.name in env:
+            funcnames = [n for n, v in env.items() if isinstance(v, FunctionNode)]
+            raise NanakoError(f"関数の定義忘れていない？: ❌{self.name} 🔍{funcnames}", error_details(self.source, self.pos))
+        function = env[self.name]
+        if not isinstance(function, FunctionNode):
+            raise NanakoError(f"関数ではありません: ❌{self.name}", error_details(self.source, self.pos))
         if len(function.parameters) != len(self.arguments):
             raise NanakoError("引数の数が一致しません", error_details(self.source, self.pos))
 
@@ -754,6 +758,11 @@ class NanakoParser(object):
         text = text.replace('“”', '"').replace('”', '"')
         """全角文字を半角に変換する"""
         return text.translate(str.maketrans("０-９Ａ-Ｚａ-ｚ", "0-9A-Za-z"))
+    
+    def add_variable(self, name: str):
+        if name not in self.variables:
+            self.variables.append(name)
+        self.variables.sort(key=lambda x: -len(x))
 
     def parse(self, text) -> ProgramNode:
         self.init_text(text)
@@ -855,7 +864,7 @@ class NanakoParser(object):
             if expression is None:
                 raise SyntaxError(f"ここに何か忘れてません？", error_details(self.text, self.pos))
 
-            self.variables.append(variable.name)
+            self.add_variable(variable.name)
             return AssignmentNode(variable, expression)
                 
         self.pos = saved_pos

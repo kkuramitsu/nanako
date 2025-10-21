@@ -100,6 +100,13 @@ class TestNanakoParser:
 
     def test_parse_japanese_variable5(self):
         """日本語の変数名のパースをテスト"""
+        expression = self.parser.parse_expression('文字列ROT13')
+        self.env['文字列ROT13'] = 1
+        result = expression.evaluate(self.runtime, self.env)
+        assert result == 1
+
+    def test_parse_japanese_variable5(self):
+        """日本語の変数名のパースをテスト"""
         expression = self.parser.parse_expression('差分に対し')
         self.env['差分'] = 1
         result = expression.evaluate(self.runtime, self.env)
@@ -874,8 +881,7 @@ class TestNanakoExamples:
     # 既知のエラーがあるファイル（修正予定）
     # サンプルファイルのバグや未実装機能により一時的にエラーになるファイル
     KNOWN_ERRORS = {
-        "09quicksort.nanako": "変数スコープの問題",
-        "09rot13.nanako": "配列アクセスの構文エラー",
+        # 全てのサンプルファイルが正常に動作するようになりました
     }
 
     def setup_method(self):
@@ -1201,30 +1207,36 @@ y
     def test_cli_python_error_displays_filename(self):
         """Python例外発生時にファイル名が表示されることを確認"""
         import subprocess
+        import tempfile
 
-        test_dir = Path(__file__).parent
-        project_root = test_dir.parent
-        error_file = project_root / "examples" / "09quicksort.nanako"
+        # 一時的なエラーファイルを作成
+        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.nanako', delete=False, encoding='utf-8')
+        error_code = """
+# 存在しない関数を呼び出してエラーを発生させる
+結果 = 存在しない関数(123)
+"""
+        temp_file.write(error_code)
+        temp_file.close()
 
-        if not error_file.exists():
-            pytest.skip("Error example file not found")
+        try:
+            cmd = self.get_nanako_command() + [temp_file.name]
 
-        cmd = self.get_nanako_command() + [str(error_file)]
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
 
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+            # エラーで終了することを確認
+            assert proc.returncode != 0
 
-        # エラーで終了することを確認
-        assert proc.returncode != 0
-
-        # エラー出力にファイル名が含まれることを確認
-        stderr = proc.stderr
-        assert "09quicksort.nanako" in stderr, f"ファイル名が表示されていません: {stderr}"
-        assert "エラーが発生しました" in stderr, f"エラーメッセージが表示されていません: {stderr}"
+            # エラー出力にファイル名が含まれることを確認
+            stderr = proc.stderr
+            assert temp_file.name in stderr or os.path.basename(temp_file.name) in stderr, f"ファイル名が表示されていません: {stderr}"
+            assert "エラーが発生しました" in stderr, f"エラーメッセージが表示されていません: {stderr}"
+        finally:
+            os.unlink(temp_file.name)
 
     def test_cli_version_display(self):
         """--versionフラグでバージョンが表示されることを確認"""
