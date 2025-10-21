@@ -504,6 +504,30 @@ class AssignmentNode(StatementNode):
         return f"{indent}{variable} = {expression}{self.semicolon(lang)}"
 
 @dataclass
+class AppendNode(StatementNode):
+    variable: VariableNode
+    expression: ExpressionNode
+
+    def __init__(self, variable: VariableNode, expression: ExpressionNode):
+        super().__init__()
+        self.variable = variable
+        self.expression = expression
+
+    def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
+        value = self.expression.evaluate(runtime, env)
+        self.variable.evaluate_with(runtime, env, value)
+        runtime.update_variable(self.variable.name, env, self.source, self.pos)
+
+    def emit(self, lang="js", indent:str = "") -> str:
+        variable = self.variable.emit(lang, indent)
+        expression = self.expression.emit(lang, indent)
+        if lang == "py":
+            return f'{indent}{variable}.append({expression})'
+        if lang == "js":
+            return f'{indent}{variable}.push({expression}){self.semicolon(lang)}'
+        return f'{indent}{variable}.append({expression})'
+
+@dataclass
 class IncrementNode(StatementNode):
     variable: VariableNode
 
@@ -712,17 +736,25 @@ class TestNode(StatementNode):
         return f"{indent}assert ({expression} == {answer}){self.semicolon(lang)}"
 
 class NanakoParser(object):
-    
-    def parse(self, text) -> ProgramNode:
+    variables: List[str]
+
+    def __init__(self):
+        self.init_text("")
+
+    def init_text(self, text: str):
         self.text = self.normalize(text)
         self.pos = 0
         self.length = len(text)
-        return self.parse_program()
+        self.variables = [] 
 
     def normalize(self, text: str) -> str:
         text = text.replace('“”', '"').replace('”', '"')
         """全角文字を半角に変換する"""
         return text.translate(str.maketrans("０-９Ａ-Ｚａ-ｚ", "0-9A-Za-z"))
+
+    def parse(self, text) -> ProgramNode:
+        self.init_text(text)
+        return self.parse_program()
 
     def error_details(self, pos):
         return error_details(self.text, pos)
@@ -743,9 +775,7 @@ class NanakoParser(object):
     
     def parse_statement(self, text = None) -> Optional[StatementNode]:
         if text is not None:
-            self.text = self.normalize(text)
-            self.pos = 0
-            self.length = len(text)
+            self.init_text(text)
 
         """文をパース"""
         self.consume_whitespace(include_newline=True)
@@ -789,12 +819,23 @@ class NanakoParser(object):
         """代入文をパース"""
         saved_pos = self.pos
 
-        variable = self.parse_variable()
+        variable : VariableNode = self.parse_variable()
         if variable is None:
             self.pos = saved_pos
             return None
         
         self.consume_whitespace()
+
+        if self.consume("の末尾に"):
+            self.consume_comma()
+            expression = self.parse_expression()
+            if expression is None:
+                raise SyntaxError(f"ここに何か忘れてません？", error_details(self.text, self.pos))
+            self.consume_whitespace()
+            self.consume_string("を")
+            self.consume_comma()
+            self.consume("追加する")
+            return AppendNode(variable, expression)
 
         if self.consume_string("を"):
             self.consume_whitespace()
@@ -819,6 +860,7 @@ class NanakoParser(object):
             if expression is None:
                 raise SyntaxError(f"ここに何か忘れてません？", error_details(self.text, self.pos))
 
+            self.variables.append(variable.name)
             return AssignmentNode(variable, expression)
                 
         self.pos = saved_pos
@@ -831,7 +873,7 @@ class NanakoParser(object):
         if not self.consume_string("もし"):
             self.pos = saved_pos
             return None
-        self.consume_cma()
+        self.consume_comma()
         
         left = self.parse_expression()
         if not left:
@@ -840,7 +882,7 @@ class NanakoParser(object):
         if not self.consume_string("が"):
             raise SyntaxError(f"`が`が必要", error_details(self.text, self.pos))
 
-        self.consume_cma()
+        self.consume_comma()
         right = self.parse_expression()
         if not right:
             raise SyntaxError(f"何と比較したいの？", error_details(self.text, self.pos))
@@ -856,11 +898,11 @@ class NanakoParser(object):
         self.consume_whitespace()
         if not self.consume_string("ならば"):
             raise SyntaxError("`ならば`が必要", error_details(self.text, self.pos))
-        self.consume_cma()
+        self.consume_comma()
 
         then_block = self.parse_block()
         if then_block is None:
-            raise SyntaxError("「もし、ならば」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
+            raise SyntaxError("「もし〜ならば」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
         
         # else節（オプション）
         else_block = self.parse_else_statement()
@@ -873,7 +915,7 @@ class NanakoParser(object):
         if not self.consume_string("そうでなければ"):
             self.pos = saved_pos
             return None
-        self.consume_cma()
+        self.consume_comma()
         block = self.parse_block()
         if block is None:
             raise SyntaxError("「そうでなければ」どうするの？ { }で囲んでね！", error_details(self.text, self.pos))
@@ -889,7 +931,7 @@ class NanakoParser(object):
         if not self.consume_string("回"):
             self.pos = saved_pos
             return None
-        self.consume_cma()
+        self.consume_comma()
         if not self.consume("くり返す", "繰り返す"):
             raise SyntaxError(f"`くり返す`が必要", error_details(self.text, self.pos))
 
@@ -912,9 +954,7 @@ class NanakoParser(object):
     
     def parse_expression(self, text=None) -> ExpressionNode:
         if text is not None:
-            self.text = self.normalize(text)
-            self.pos = 0
-            self.length = len(text)
+            self.init_text(text)
             
         """式をパース"""
         self.consume_whitespace()
@@ -1070,7 +1110,7 @@ class NanakoParser(object):
         if not self.consume_string("に対し"):
             raise SyntaxError(f"`に対し`が必要", error_details(self.text, self.pos))
         self.consume_string("て")
-        self.consume_cma()
+        self.consume_comma()
         body = self.parse_block()
         
         if body is None:
@@ -1186,11 +1226,13 @@ class NanakoParser(object):
     def parse_identifier(self) -> str:
         """識別子をパース"""
         saved_pos = self.pos
-        if not self.consume_alpha():
+        if self.consume(*self.variables):
+            return self.text[saved_pos:self.pos]
+        elif not self.consume_alpha():
             self.pos = saved_pos
             return None
 
-        while self.not_identifier_words() and self.consume_alpha():
+        while (not self.is_keywords()) and self.consume_alpha():
             pass
 
         while self.consume_digit():
@@ -1201,13 +1243,13 @@ class NanakoParser(object):
             return name
         return None
     
-    def not_identifier_words(self) -> bool:
+    def is_keywords(self) -> bool:
         # 除外キーワードチェック
         remaining = self.text[self.pos:]
-        for kw in ["くり返す", "を", "回", "とする", "が", "ならば", "に対し"]:
+        for kw in ["くり返す", "を", "回", "とする", "が", "ならば", "に対し", "の末尾に", "を増やす"]:
             if remaining.startswith(kw):
-                return False
-        return True
+                return True
+        return False
     
     def consume_alpha(self) -> bool:
         if self.pos < self.length:
@@ -1259,7 +1301,7 @@ class NanakoParser(object):
                 break
         return c
     
-    def consume_cma(self):
+    def consume_comma(self):
         self.consume("、", "，", ",")
         self.consume_whitespace()
     

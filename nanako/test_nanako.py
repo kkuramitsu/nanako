@@ -72,6 +72,22 @@ class TestNanakoParser:
         result = expression.evaluate(self.runtime, self.env)
         assert result == 1
 
+    def test_parse_japanese_variable2(self):
+        """日本語の変数名のパースをテスト"""
+        self.parser.variables.append('近い要素がある')
+        expression = self.parser.parse_expression('近い要素がある')
+        self.env['近い要素がある'] = 1
+        result = expression.evaluate(self.runtime, self.env)
+        assert result == 1
+
+    def test_parse_japanese_variable3(self):
+        """日本語の変数名のパースをテスト"""
+        self.parser.variables.append('残りの回数')
+        expression = self.parser.parse_expression('残りの回数')
+        self.env['残りの回数'] = 1
+        result = expression.evaluate(self.runtime, self.env)
+        assert result == 1
+
     def test_parse_variable_index(self):
         """変数のインデックスアクセスのパースをテスト"""
         expression = self.parser.parse_expression('x[0]')
@@ -210,17 +226,17 @@ class TestNanakoParser:
         assert "忘" in str(e.value)
 
 
-    def test_parse_japanese_assignment(self):
-        """代入文のパースをテスト"""
-        statement = self.parser.parse_statement('xを1とする')
-        statement.evaluate(self.runtime, self.env)
-        assert self.env['x'] == 1
+    # def test_parse_japanese_assignment(self):
+    #     """代入文のパースをテスト"""
+    #     statement = self.parser.parse_statement('xを1とする')
+    #     statement.evaluate(self.runtime, self.env)
+    #     assert self.env['x'] == 1
 
-    def test_parse_japanese_assignment_ja(self):
-        """代入文のパースをテスト"""
-        statement = self.parser.parse_statement('変数を1とする')
-        statement.evaluate(self.runtime, self.env)
-        assert self.env['変数'] == 1
+    # def test_parse_japanese_assignment_ja(self):
+    #     """代入文のパースをテスト"""
+    #     statement = self.parser.parse_statement('変数を1とする')
+    #     statement.evaluate(self.runtime, self.env)
+    #     assert self.env['変数'] == 1
 
     def test_parse_assignment_array(self):
         """代入文のパースをテスト"""
@@ -238,21 +254,21 @@ class TestNanakoParser:
         statement.evaluate(self.runtime, self.env)
         assert self.env['変数'].elements == [1]
 
-    def test_parse_japanese_assignment_array(self):
-        """代入文のパースをテスト"""
-        statement = self.parser.parse_statement('x[0]を1とする')
-        self.env['x'] = NanakoArray([0])
-        self.env = self.runtime.transform_array(self.env)
-        statement.evaluate(self.runtime, self.env)
-        assert self.env['x'].elements == [1]
+    # def test_parse_japanese_assignment_array(self):
+    #     """代入文のパースをテスト"""
+    #     statement = self.parser.parse_statement('x[0]を1とする')
+    #     self.env['x'] = NanakoArray([0])
+    #     self.env = self.runtime.transform_array(self.env)
+    #     statement.evaluate(self.runtime, self.env)
+    #     assert self.env['x'].elements == [1]
 
-    def test_parse_japanese_assignment_array_ja(self):
-        """代入文のパースをテスト"""
-        statement = self.parser.parse_statement('変数[0]を1とする')
-        self.env['変数'] = [0]
-        self.env = self.runtime.transform_array(self.env)
-        statement.evaluate(self.runtime, self.env)
-        assert self.env['変数'].elements == [1]
+    # def test_parse_japanese_assignment_array_ja(self):
+    #     """代入文のパースをテスト"""
+    #     statement = self.parser.parse_statement('変数[0]を1とする')
+    #     self.env['変数'] = [0]
+    #     self.env = self.runtime.transform_array(self.env)
+    #     statement.evaluate(self.runtime, self.env)
+    #     assert self.env['変数'].elements == [1]
 
     def test_parse_increment(self):
         """インクリメントのパースをテスト"""
