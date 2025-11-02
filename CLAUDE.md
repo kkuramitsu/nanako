@@ -15,7 +15,7 @@ Python版がNanakoのマスター実装です。必要に応じて人手メン�
 
 - `nanako/nanako.py`: パーサと抽象構文木、評価器
 - `nanako/run_nanako.py`: CLIインターフェース（エラーハンドリング含む）
-- `nanako/test_nanako.py`: テストコード（100テスト、4テストクラス）
+- `nanako/test_nanako.py`: テストコード（101テスト、4テストクラス）
 
 `setup.py` & `pyproject.toml`: PyPI packaging configuration
 
@@ -24,7 +24,7 @@ Python版がNanakoのマスター実装です。必要に応じて人手メン�
 原則、Web ブラウザ上で実装するための nanako.py から移植されたものです。
 
 - `html/nanako.js`: Python版 nanako.py の移植
-- `html/nanako.test.js`: テストコード
+- `html/nanako.test.js`: テストコード（74テスト、Jest使用）
 - `html/nanako_editor.html`: Webブラウザ上の実行環境
 
 ### サンプルコード
@@ -45,13 +45,13 @@ Nanako のサンプルコードは `examples/` ディレクトリにあります
   - Timeout protection (default: 30 seconds)
 
 - **AST Nodes**: Abstract syntax tree classes inheriting from `ASTNode`
-  - Statements: `AssignmentNode`, `AppendNode`, `IncrementNode`, `DecrementNode`, `IfNode`, `LoopNode`, `ReturnNode`, `TestNode`, `ExpressionStatementNode`
+  - Statements: `AssignmentNode`, `AppendNode`, `IncrementNode`, `DecrementNode`, `IfNode`, `LoopNode`, `BreakNode`, `ReturnNode`, `TestNode`, `ExpressionStatementNode`
   - Expressions: `NumberNode`, `VariableNode`, `FunctionNode`, `FuncCallNode`, `ArrayNode`, `StringNode`, `NullNode`, `MinusNode`, `ArrayLenNode`
   - All nodes have `evaluate()` and `emit()` methods
 
 - **NanakoParser**: Recursive descent parser with Japanese language support
   - Context-aware identifier parsing (定義時と参照時で異なる挙動)
-  - Keyword detection: `に対し`, `を増やす`, `を減らす`, `の末尾に`
+  - Keyword detection: `に対し`, `を増やす`, `を減らす`, `の末尾に`, `くり返しを抜ける`
 
 - **Error Handling**: Custom `NanakoError` with source position tracking
   - Line number, column number, code snippet
@@ -72,18 +72,21 @@ nanako examples/01basic.nanako                          # After pip install
 
 ### Testing
 ```bash
-# 全テスト実行（100テスト）
+# 全テスト実行（101テスト）
 python3 -m pytest nanako/test_nanako.py -v
 
 # テストクラス別実行
 python3 -m pytest nanako/test_nanako.py::TestNanakoParser -v       # パーサーテスト (65)
-python3 -m pytest nanako/test_nanako.py::TestNanako -v             # 実行テスト (8)
+python3 -m pytest nanako/test_nanako.py::TestNanako -v             # 実行テスト (9)
 python3 -m pytest nanako/test_nanako.py::TestNanakoEmitCode -v     # コード生成テスト (2)
 python3 -m pytest nanako/test_nanako.py::TestNanakoExamples -v     # サンプルファイルテスト (16)
 python3 -m pytest nanako/test_nanako.py::TestNanakoCLI -v          # CLIテスト (8)
 
 # 個別テスト実行
 python3 -m pytest nanako/test_nanako.py::TestNanakoExamples::test_individual_example[01basic.nanako] -v
+
+# JavaScriptテスト実行（74テスト）
+cd html && npm test
 ```
 
 ## Implementation Notes
@@ -103,6 +106,20 @@ Two syntax options for appending to arrays:
 Functions create new environment scopes. Return values use `ReturnBreakException` for control flow.
 - Pattern: `expression が答え` (expression is the answer)
 - Call frame tracking for debugging
+
+### Loop Control Flow
+Loops support break statements using `BreakBreakException` for control flow.
+- Pattern: `くり返しを抜ける` or `繰り返しを抜ける` (break from loop)
+- Works with both infinite loops (`?回、くり返す`) and counted loops (`N回、くり返す`)
+- Example:
+  ```nanako
+  10回、くり返す {
+      もし yが5ならば、{
+          くり返しを抜ける
+      }
+      yを増やす
+  }
+  ```
 
 ### String Handling
 Strings are internally represented as `NanakoArray` of Unicode code points.
@@ -171,12 +188,17 @@ When updating the web implementation:
 4. Ensure code generation (`emit()`) works for both JS and Python
 
 ### Testing Strategy
-The test suite (100 tests) covers:
+The Python test suite (101 tests) covers:
 1. **Parser tests (65)**: All syntax variations and error cases
-2. **Execution tests (8)**: Complex programs (functions, recursion, algorithms)
+2. **Execution tests (9)**: Complex programs (functions, recursion, algorithms, loop control)
 3. **Code generation tests (2)**: JS/Python emit functionality
 4. **Example file tests (16)**: All `examples/*.nanako` files
 5. **CLI tests (8)**: Command-line interface including error reporting
+
+The JavaScript test suite (74 tests) covers:
+1. **Parser tests (60)**: All syntax variations and error cases
+2. **Execution tests (9)**: Complex programs matching Python test suite
+3. **Code generation tests (2)**: JS/Python emit functionality
 
 ### Known Issues
 Some example files have known errors (tracked in `TestNanakoExamples.KNOWN_ERRORS`):
@@ -189,7 +211,24 @@ Some example files have known errors (tracked in `TestNanakoExamples.KNOWN_ERROR
 - JavaScript version should be kept in sync with Python implementation
 - Both implementations share the same AST structure and language semantics
 
-## Recent Improvements (2025-10)
+## Recent Improvements (2025-10/11)
+
+### Version 0.2.2 - Break Statement Support
+- Added `BreakNode` AST node for loop control flow
+- Added `BreakBreakException` for control flow handling
+- Syntax: `くり返しを抜ける` or `繰り返しを抜ける`
+- Works with both infinite loops and counted loops
+- Implemented in both Python and JavaScript versions
+- Added comprehensive test cases (Python: 101 tests, JavaScript: 74 tests)
+- Example:
+  ```nanako
+  10回、くり返す {
+      もし yが5ならば、{
+          くり返しを抜ける
+      }
+      yを増やす
+  }
+  ```
 
 ### Context-Aware Identifier Parsing
 - Improved parsing of Japanese variable names
@@ -207,7 +246,8 @@ Some example files have known errors (tracked in `TestNanakoExamples.KNOWN_ERROR
 - Improved debugging experience for educational use
 
 ### Comprehensive Test Suite
-- 100 tests covering all aspects of the language
+- Python: 101 tests covering all aspects of the language
+- JavaScript: 74 tests matching Python implementation
 - Automated testing of all example files
 - CLI functionality tests (no installation required)
 
