@@ -586,6 +586,21 @@ class TestNanako {
         }).toThrow(/タイムアウト/);
     }
 
+    testLoopBreak() {
+        const program = this.parser.parse(`
+            y = 0
+            10回、くり返す {
+                もし yが5ならば、{
+                    くり返しを抜ける
+                }
+                yを増やす
+            }
+            `);
+        this.env = {};
+        program.evaluate(this.runtime, this.env);
+        expect(this.env.y).toBe(5);
+    }
+
     testAdditionFunction() {
         const program = this.parser.parse(`
 足し算 = 入力 X, Y に対し {
@@ -924,6 +939,7 @@ describe('Nanako', () => {
 
     test('function', () => testInstance.testFunction());
     test('infinite loop', () => testInstance.testInfiniteLoop());
+    test('loop break', () => testInstance.testLoopBreak());
     test('addition function', () => testInstance.testAdditionFunction());
     test('abs function', () => testInstance.testAbsFunction());
     test('mod function', () => testInstance.testModFunction());

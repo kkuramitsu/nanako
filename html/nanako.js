@@ -222,6 +222,12 @@ class NanakoError extends SyntaxError {
     }
 }
 
+class BreakBreakException extends Error {
+    constructor() {
+        super();
+    }
+}
+
 class ReturnBreakException extends Error {
     constructor(value = null) {
         super();
@@ -790,9 +796,16 @@ class LoopNode extends StatementNode {
         const loopCount = this.count.evaluate(runtime, env);
         const details = errorDetails(this.source, this.pos);
         if (loopCount === null) {
-            while (true) {
-                runtime.checkExecution(details);
-                this.body.evaluate(runtime, env);
+            try {
+                while (true) {
+                    runtime.checkExecution(details);
+                    this.body.evaluate(runtime, env);
+                }
+            } catch (e) {
+                if (e instanceof BreakBreakException) {
+                    return;
+                }
+                throw e;
             }
         }
         if (Array.isArray(loopCount)) {
@@ -801,9 +814,16 @@ class LoopNode extends StatementNode {
         if (loopCount < 0) {
             throw new NanakoError(`負のループ回数: ${loopCount}`, details);
         }
-        for (let i = 0; i < Math.floor(loopCount); i++) {
-            runtime.checkExecution(details);
-            this.body.evaluate(runtime, env);
+        try {
+            for (let i = 0; i < Math.floor(loopCount); i++) {
+                runtime.checkExecution(details);
+                this.body.evaluate(runtime, env);
+            }
+        } catch (e) {
+            if (e instanceof BreakBreakException) {
+                return;
+            }
+            throw e;
         }
     }
 
@@ -827,6 +847,20 @@ class LoopNode extends StatementNode {
 
         lines.push(this.body.emit(lang, indent));
         return lines.join("\n");
+    }
+}
+
+class BreakNode extends StatementNode {
+    constructor() {
+        super();
+    }
+
+    evaluate(runtime, env) {
+        throw new BreakBreakException();
+    }
+
+    emit(lang = "js", indent = "") {
+        return `${indent}break${this.semicolon(lang)}`;
     }
 }
 
@@ -951,6 +985,9 @@ class NanakoParser {
         }
         if (!stmt) {
             stmt = this.parseReturn();
+        }
+        if (!stmt) {
+            stmt = this.parseBreak();
         }
         if (stmt) {
             stmt.source = this.text;
@@ -1146,6 +1183,15 @@ class NanakoParser {
             if (this.pos >= this.length || this.text[this.pos] === '\n') {
                 return new ExpressionStatementNode(expression);
             }
+        }
+        this.pos = savedPos;
+        return null;
+    }
+
+    parseBreak() {
+        const savedPos = this.pos;
+        if (this.consume("くり返しを抜ける", "繰り返しを抜ける")) {
+            return new BreakNode();
         }
         this.pos = savedPos;
         return null;
