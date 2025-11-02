@@ -167,6 +167,10 @@ class NanakoError(SyntaxError):
     def __init__(self, message: str, details):
         super().__init__(message, details)
 
+class BreakBreakException(RuntimeError):
+    def __init__(self):
+        pass
+
 
 class ReturnBreakException(RuntimeError):
     def __init__(self, value=None):
@@ -664,16 +668,23 @@ class LoopNode(StatementNode):
         loop_count = self.count.evaluate(runtime, env)
         details = error_details(self.source, self.pos)
         if loop_count is None:
-            while True:
-                runtime.checkExecution(details)
-                self.body.evaluate(runtime, env)            
+            try:
+                while True:
+                    runtime.checkExecution(details)
+                    self.body.evaluate(runtime, env)
+            except BreakBreakException:
+                pass
+            return         
         if isinstance(loop_count, list):
             raise NanakoError(f"配列の長さでは？", details)
         if loop_count < 0:
             raise NanakoError(f"負のループ回数: {loop_count}", details)
-        for _ in range(int(loop_count)):
-            runtime.checkExecution(details)
-            self.body.evaluate(runtime, env)
+        try:
+            for _ in range(int(loop_count)):
+                runtime.checkExecution(details)
+                self.body.evaluate(runtime, env)
+        except BreakBreakException:
+            pass
 
     def emit(self, lang="js", indent:str = "") -> str:
         lines = []
@@ -693,6 +704,17 @@ class LoopNode(StatementNode):
         lines.append(self.body.emit(lang, indent))
         return "\n".join(lines)
 
+@dataclass
+class BreakNode(StatementNode):
+
+    def __init__(self):
+        super().__init__()
+
+    def evaluate(self, runtime: NanakoRuntime, env: Dict[str, Any]):
+        raise BreakBreakException()
+
+    def emit(self, lang="js", indent:str = "") -> str:
+        return f"{indent}break{self.semicolon(lang)}"
 
 
 @dataclass
@@ -807,6 +829,8 @@ class NanakoParser(object):
             stmt = self.parse_AssignmentNode()
         if not stmt:
             stmt = self.parse_ReturnNode()
+        if not stmt:
+            stmt = self.parse_BreakNode()
         if stmt:
             stmt.source = self.text
             stmt.pos = saved_pos
@@ -958,6 +982,13 @@ class NanakoParser(object):
             self.consume_whitespace()
             if self.pos >= self.length or self.text[self.pos] == '\n':
                 return ExpressionStatementNode(expression)
+        self.pos = saved_pos
+        return None
+
+    def parse_BreakNode(self) -> BreakNode:
+        saved_pos = self.pos
+        if self.consume("くり返しを抜ける", "繰り返しを抜ける"):
+            return BreakNode()
         self.pos = saved_pos
         return None
 

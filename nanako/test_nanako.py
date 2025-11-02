@@ -598,6 +598,21 @@ class TestNanako:
         print(self.env)
         assert self.env['y'] == 5
 
+    def test_loop_break(self):
+        """無限関数のテスト"""
+        program = self.parser.parse('''
+            y = 0
+            10回、くり返す {
+                もし yが5ならば、{
+                    くり返しを抜ける
+                }
+                yを増やす
+            }
+            ''')
+        self.env = {}
+        program.evaluate(self.runtime, self.env)
+        assert self.env['y'] == 5
+
     def test_infinite_loop(self):
         """無限関数のテスト"""
         program = self.parser.parse('''
