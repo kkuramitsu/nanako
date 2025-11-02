@@ -1345,7 +1345,7 @@ class NanakoParser(object):
         return c
     
     def consume_comma(self):
-        self.consume("、", "，", ",")
+        self.consume("、", "，", ",", "､")
         self.consume_whitespace()
     
     def consume_eol(self):

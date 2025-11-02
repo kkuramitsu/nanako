@@ -1353,7 +1353,7 @@ class NanakoParser {
             }
             parameters.push(identifier);
             this.consumeWhitespace();
-            if (!this.consume(",", "、")) {
+            if (!this.consume(",", "、", "，", "､")) {
                 break;
             }
             this.consumeWhitespace();
@@ -1405,7 +1405,7 @@ class NanakoParser {
             if (this.consume(")", "）")) {
                 break;
             }
-            if (!this.consume(",", "、", "，")) {
+            if (!this.consume(",", "、", "，", "､")) {
                 throw new SyntaxError("閉じ`)`を忘れないで", this.errorDetails(this.pos));
             }
             this.consumeWhitespace();
@@ -1439,7 +1439,7 @@ class NanakoParser {
             if (this.consume("]", "】")) {
                 break;
             }
-            if (!this.consume(",", "、", "，")) {
+            if (!this.consume(",", "、", "，", "､")) {
                 throw new SyntaxError("閉じ`]`を忘れないで", this.errorDetails(savedPos2));
             }
         }
@@ -1538,7 +1538,7 @@ class NanakoParser {
             // 定義時のコンテキスト: より広範な文字を変数名として受け入れる
             while (this.pos < this.length) {
                 const char = this.text[this.pos];
-                if (" \t\n\r,=[](){}#　＝＃、，【】（）｛｝".includes(char)) {
+                if (" \t\n\r,=[](){}#　＝＃、，､【】（）｛｝".includes(char)) {
                     break;
                 }
                 if ("にをの".includes(char)) {
@@ -1649,7 +1649,7 @@ class NanakoParser {
     }
 
     consumeCma() {
-        this.consume("、", "，", ",");
+        this.consume("、", "，", "､", ",");
         this.consumeWhitespace();
     }
 
