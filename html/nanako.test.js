@@ -548,6 +548,50 @@ class TestNanakoParser {
             statement.evaluate(this.runtime, this.env);
         }).toThrow(/失敗/);
     }
+
+    testParseFunctionWithEmptyLines() {
+        const program = this.parser.parse(`
+たし算 = 入力 x に対し、{
+
+    x が答え
+
+}
+
+たし算(5)
+            `);
+        this.env = {};
+        program.evaluate(this.runtime, this.env);
+        // 関数が正常に実行されることを確認（エラーが出ないこと）
+        expect('たし算' in this.env).toBe(true);
+    }
+
+    testParseLoopWithEmptyLines() {
+        const program = this.parser.parse(`
+x = 0
+5回、くり返す {
+
+    xを増やす
+
+}
+            `);
+        this.env = {};
+        program.evaluate(this.runtime, this.env);
+        expect(this.env.x).toBe(5);
+    }
+
+    testParseIfWithEmptyLines() {
+        const program = this.parser.parse(`
+x = 10
+もし xが5以上ならば、{
+
+    xを増やす
+
+}
+            `);
+        this.env = {};
+        program.evaluate(this.runtime, this.env);
+        expect(this.env.x).toBe(11);
+    }
 }
 
 class TestNanako {
@@ -927,6 +971,9 @@ describe('NanakoParser', () => {
     test('parse doctest pass', () => testInstance.testParseDoctestPass());
     test('parse doctest pass 2', () => testInstance.testParseDoctestPass2());
     test('parse doctest fail', () => testInstance.testParseDoctestFail());
+    test('parse function with empty lines', () => testInstance.testParseFunctionWithEmptyLines());
+    test('parse loop with empty lines', () => testInstance.testParseLoopWithEmptyLines());
+    test('parse if with empty lines', () => testInstance.testParseIfWithEmptyLines());
 });
 
 describe('Nanako', () => {
