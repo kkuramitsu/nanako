@@ -152,6 +152,7 @@ function_call ::= identifier "(" [ expression { "," expression } ] ")"
 variable ::= identifier [ array_access ]
 
 array_access ::= ( "[" | "【" ) expression ( "]" | "】" ) { ( "[" | "【" ) expression ( "]" | "】" ) }
+               /* 多次元配列アクセス: a[1][0] のような記法が可能 */
 
 identifier ::= ( letter | japanese_char ) { letter | japanese_char | digit }
 ```
@@ -224,10 +225,16 @@ xを減らす
 ### 配列
 
 ```nanako
+# 1次元配列
 arr = [1, 2, 3]
 arr[0] = 10
 arr[?] = 4
 length = |arr|
+
+# 多次元配列
+matrix = [[1, 2], [3, 4]]
+matrix[0][1] = 5    # matrix[0]の1番目の要素にアクセス
+x = matrix[1][0]    # x = 3
 ```
 
 ### 条件分岐
