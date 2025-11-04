@@ -573,6 +573,50 @@ class TestNanakoParser:
             assert self.env['x'] == 1
         assert "失敗" in str(e.value)
 
+    def test_parse_function_with_empty_lines(self):
+        """関数本体内の空行をテスト"""
+        program = self.parser.parse('''
+たし算 = 入力 x に対し、{
+
+    x が答え
+
+}
+
+たし算(5)
+            ''')
+        self.env = {}
+        program.evaluate(self.runtime, self.env)
+        # 関数が正常に実行されることを確認（エラーが出ないこと）
+        assert 'たし算' in self.env
+
+    def test_parse_loop_with_empty_lines(self):
+        """ループ本体内の空行をテスト"""
+        program = self.parser.parse('''
+x = 0
+5回、くり返す {
+
+    xを増やす
+
+}
+            ''')
+        self.env = {}
+        program.evaluate(self.runtime, self.env)
+        assert self.env['x'] == 5
+
+    def test_parse_if_with_empty_lines(self):
+        """if文本体内の空行をテスト"""
+        program = self.parser.parse('''
+x = 10
+もし xが5以上ならば、{
+
+    xを増やす
+
+}
+            ''')
+        self.env = {}
+        program.evaluate(self.runtime, self.env)
+        assert self.env['x'] == 11
+
 class TestNanako:
     """Nanako のテストクラス"""
     
