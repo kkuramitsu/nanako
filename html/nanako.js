@@ -1093,17 +1093,17 @@ class NanakoParser {
 
         const left = this.parseExpression();
         if (!left) {
-            throw new SyntaxError("何と比較したいの？", this.errorDetails(this.pos));
+            throw new NanakoError("何と比較したいの？", this.errorDetails(this.pos));
         }
 
         if (!this.consumeString("が")) {
-            throw new SyntaxError("`が`が必要", this.errorDetails(this.pos));
+            throw new NanakoError("`が`が必要", this.errorDetails(this.pos));
         }
 
         this.consumeCma();
         const right = this.parseExpression();
         if (!right) {
-            throw new SyntaxError("何と比較したいの？", this.errorDetails(this.pos));
+            throw new NanakoError("何と比較したいの？", this.errorDetails(this.pos));
         }
         this.consumeWhitespace();
 
@@ -1118,13 +1118,13 @@ class NanakoParser {
 
         this.consumeWhitespace();
         if (!this.consumeString("ならば")) {
-            throw new SyntaxError("`ならば`が必要", this.errorDetails(this.pos));
+            throw new NanakoError("`ならば`が必要", this.errorDetails(this.pos));
         }
         this.consumeCma();
 
         const thenBlock = this.parseBlock();
         if (thenBlock === null) {
-            throw new SyntaxError("「もし、ならば」どうするの？ { }で囲んでね！", this.errorDetails(this.pos));
+            throw new NanakoError("「もし、ならば」どうするの？ { }で囲んでね！", this.errorDetails(this.pos));
         }
 
         // else節（オプション）
@@ -1143,7 +1143,7 @@ class NanakoParser {
         this.consumeCma();
         const block = this.parseBlock();
         if (block === null) {
-            throw new SyntaxError("「そうでなければ」どうするの？ { }で囲んでね！", this.errorDetails(this.pos));
+            throw new NanakoError("「そうでなければ」どうするの？ { }で囲んでね！", this.errorDetails(this.pos));
         }
         return block;
     }
@@ -1162,12 +1162,12 @@ class NanakoParser {
         }
         this.consumeCma();
         if (!this.consume("くり返す", "繰り返す")) {
-            throw new SyntaxError("`くり返す`が必要", this.errorDetails(this.pos));
+            throw new NanakoError("`くり返す`が必要", this.errorDetails(this.pos));
         }
 
         const body = this.parseBlock();
         if (body === null) {
-            throw new SyntaxError("何をくり返すの？ { }で囲んでね！", this.errorDetails(this.pos));
+            throw new NanakoError("何をくり返すの？ { }で囲んでね！", this.errorDetails(this.pos));
         }
         return new LoopNode(count, body);
     }
@@ -1235,7 +1235,7 @@ class NanakoParser {
 
         if (expression) {
             if (this.consume("+", "-", "*", "/", "%", "＋", "ー", "＊", "／", "％", "×", "÷")) {
-                throw new SyntaxError("ななこは中置記法を使えないよ！", this.errorDetails(this.pos));
+                throw new NanakoError("ななこは中置記法を使えないよ！", this.errorDetails(this.pos));
             }
             expression.source = this.text;
             expression.pos = savedPos;
@@ -1261,7 +1261,7 @@ class NanakoParser {
         }
 
         if (this.consume(".")) {
-            throw new SyntaxError("ななこは小数を使えないよ！", this.errorDetails(this.pos));
+            throw new NanakoError("ななこは小数を使えないよ！", this.errorDetails(this.pos));
         }
 
         const valueStr = this.text.slice(savedPos, this.pos);
@@ -1312,7 +1312,7 @@ class NanakoParser {
         // ダブルクォート終了
         if (!this.consume('"', '"', '"')) {
             this.pos = savedPos;
-            throw new SyntaxError("閉じ`\"`を忘れないで", this.errorDetails(savedPos));
+            throw new NanakoError("閉じ`\"`を忘れないで", this.errorDetails(savedPos));
         }
 
         // 文字コードを取り出す
@@ -1320,18 +1320,18 @@ class NanakoParser {
             this.consumeWhitespace();
             const number = this.parseInteger();
             if (number === null) {
-                throw new SyntaxError("添え字を忘れているよ", this.errorDetails(this.pos));
+                throw new NanakoError("添え字を忘れているよ", this.errorDetails(this.pos));
             }
             this.consumeWhitespace();
             if (!this.consume("]", "】")) {
-                throw new SyntaxError("閉じ`]`を忘れないで", this.errorDetails(this.pos));
+                throw new NanakoError("閉じ`]`を忘れないで", this.errorDetails(this.pos));
             }
             if (stringContent.length === 0) {
-                throw new SyntaxError("空の文字列に添え字は使えません", this.errorDetails(this.pos));
+                throw new NanakoError("空の文字列に添え字は使えません", this.errorDetails(this.pos));
             }
             const index = number.value;
             if (!(0 <= index && index < stringContent.length)) {
-                throw new SyntaxError(`添え字は0から${stringContent.length-1}の間ですよ: ❌${index}`, this.errorDetails(this.pos));
+                throw new NanakoError(`添え字は0から${stringContent.length-1}の間ですよ: ❌${index}`, this.errorDetails(this.pos));
             }
             return new NumberNode(stringContent[index].charCodeAt(0));
         }
@@ -1351,7 +1351,7 @@ class NanakoParser {
         this.consumeWhitespace();
         const element = this.parseExpression();
         if (element === null) {
-            throw new SyntaxError("`-`の次に何か忘れてない？", this.errorDetails(this.pos));
+            throw new NanakoError("`-`の次に何か忘れてない？", this.errorDetails(this.pos));
         }
         return new MinusNode(element);
     }
@@ -1367,11 +1367,11 @@ class NanakoParser {
         this.consumeWhitespace();
         const element = this.parseExpression();
         if (element === null) {
-            throw new SyntaxError("`|`の次に何か忘れてない？", this.errorDetails(this.pos));
+            throw new NanakoError("`|`の次に何か忘れてない？", this.errorDetails(this.pos));
         }
         this.consumeWhitespace();
         if (!this.consume("|", "｜")) {
-            throw new SyntaxError("閉じ`|`を忘れないで", this.errorDetails(this.pos));
+            throw new NanakoError("閉じ`|`を忘れないで", this.errorDetails(this.pos));
         }
         return new LenNode(element);
     }
@@ -1392,10 +1392,10 @@ class NanakoParser {
         while (true) {
             const identifier = this.parseIdentifier(true);  // definitionContext = true
             if (identifier === null) {
-                throw new SyntaxError("変数名が必要", this.errorDetails(this.pos));
+                throw new NanakoError("変数名が必要", this.errorDetails(this.pos));
             }
             if (parameters.includes(identifier)) {
-                throw new SyntaxError(`同じ変数名を使っているよ: ❌'${identifier}'`, this.errorDetails(this.pos));
+                throw new NanakoError(`同じ変数名を使っているよ: ❌'${identifier}'`, this.errorDetails(this.pos));
             }
             parameters.push(identifier);
             this.consumeWhitespace();
@@ -1406,19 +1406,19 @@ class NanakoParser {
         }
 
         if (parameters.length === 0) {
-            throw new SyntaxError("ひとつは変数名が必要", this.errorDetails(this.pos));
+            throw new NanakoError("ひとつは変数名が必要", this.errorDetails(this.pos));
         }
 
         this.consumeWhitespace();
         if (!this.consumeString("に対し")) {
-            throw new SyntaxError("`に対し`が必要", this.errorDetails(this.pos));
+            throw new NanakoError("`に対し`が必要", this.errorDetails(this.pos));
         }
         this.consumeString("て");
         this.consumeCma();
         const body = this.parseBlock();
 
         if (body === null) {
-            throw new SyntaxError("関数の本体は？ { }で囲んでね！", this.errorDetails(this.pos));
+            throw new NanakoError("関数の本体は？ { }で囲んでね！", this.errorDetails(this.pos));
         }
         return new FunctionNode(parameters, body);
     }
@@ -1444,7 +1444,7 @@ class NanakoParser {
         while (true) {
             const expression = this.parseExpression();
             if (expression === null) {
-                throw new SyntaxError("関数なら引数を忘れないで", this.errorDetails(this.pos));
+                throw new NanakoError("関数なら引数を忘れないで", this.errorDetails(this.pos));
             }
             args.push(expression);
             this.consumeWhitespace();
@@ -1452,7 +1452,7 @@ class NanakoParser {
                 break;
             }
             if (!this.consume(",", "、", "，", "､")) {
-                throw new SyntaxError("閉じ`)`を忘れないで", this.errorDetails(this.pos));
+                throw new NanakoError("閉じ`)`を忘れないで", this.errorDetails(this.pos));
             }
             this.consumeWhitespace();
         }
@@ -1478,7 +1478,7 @@ class NanakoParser {
             }
             const expression = this.parseExpression();
             if (expression === null) {
-                throw new SyntaxError("値を忘れてます", this.errorDetails(this.pos));
+                throw new NanakoError("値を忘れてます", this.errorDetails(this.pos));
             }
             elements.push(expression);
             this.consumeWhitespace(true);  // include newlines
@@ -1486,7 +1486,7 @@ class NanakoParser {
                 break;
             }
             if (!this.consume(",", "、", "，", "､")) {
-                throw new SyntaxError("閉じ`]`を忘れないで", this.errorDetails(savedPos2));
+                throw new NanakoError("閉じ`]`を忘れないで", this.errorDetails(savedPos2));
             }
         }
 
@@ -1515,7 +1515,7 @@ class NanakoParser {
             const index = this.parseExpression();
             indices.push(index);
             if (!this.consume("]", "】")) {
-                throw new SyntaxError("閉じ `]`を忘れないで", this.errorDetails(this.pos));
+                throw new NanakoError("閉じ `]`を忘れないで", this.errorDetails(this.pos));
             }
         }
 
@@ -1570,7 +1570,7 @@ class NanakoParser {
         }
 
         if (!foundClosingBrace) {
-            throw new SyntaxError("閉じ `}`を忘れないで", this.errorDetails(savedPos));
+            throw new NanakoError("閉じ `}`を忘れないで", this.errorDetails(savedPos));
         }
 
         return new BlockNode(statements);
