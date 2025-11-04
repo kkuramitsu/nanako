@@ -34,7 +34,7 @@ class NanakoRuntime(object):
         if self.interactive_mode:
             print(f"{value}")
         else:
-            print(f">>> {snipet.strip()}\n{value}   #(at line {line})")
+            print(f">>> {snipet.strip()}   #({line}行目)\n{value}")
 
     def start(self, timeout = 30):
         self.shouldStop = False

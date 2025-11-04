@@ -95,7 +95,7 @@ class NanakoRuntime {
         if (this.interactiveMode) {
             console.log(`${value}`);
         } else {
-            console.log(`>>> ${details.lineText.trim()}\n${value}   #(at line ${details.line})`);
+            console.log(`>>> ${details.lineText.trim()}   #(${details.line}行目)\n${value}`);
         }
     }
 

@@ -1132,17 +1132,18 @@ result`,
                 const originalPrint = runtime.print;
                 runtime.print = function(value, source, pos, endPos) {
                     const details = errorDetails(source, pos);
-                    
+
                     // 配列の場合はコピーを作成して参照の問題を回避
                     let outputValue = value;
                     if (value instanceof NanakoArray) {
                         outputValue = new NanakoArray([...value.elements]);
                         outputValue.isStringView = value.isStringView;
                     }
-                    
+
                     outputs.push({
                         type: 'print',
                         code: details.lineText.trim(),
+                        line: details.line,
                         value: outputValue
                     });
                 };
@@ -1162,7 +1163,7 @@ result`,
                 if (outputs.length > 0) {
                     output += '=== 実行結果 ===\n';
                     outputs.forEach(item => {
-                        output += `>>> ${item.code}\n`;
+                        output += `>>> ${item.code}   #(${item.line}行目)\n`;
                         if (item.value instanceof NanakoArray) {
                             if (item.value.isStringView) {
                                 const chars = item.value.elements.map(code => String.fromCharCode(code)).join('');
@@ -1331,8 +1332,21 @@ result`,
             }
 
             // テキスト形式で履歴をまとめる
+            const now = new Date();
+            const dateStr = now.toLocaleString('ja-JP', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
             let text = '===================================\n';
             text += 'Nanako プログラミング演習記録\n';
+            text += '===================================\n';
+            text += `演習日時: ${dateStr}\n`;
+            text += `ブラウザ: ${navigator.userAgent}\n`;
             text += '===================================\n\n';
 
             executionHistory.forEach((record, index) => {
@@ -1367,7 +1381,6 @@ result`,
             text += '===================================\n';
 
             // ファイル名を生成（日付を含む）
-            const now = new Date();
             const filename = `nanako_記録_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}.txt`;
 
             // ダウンロード
