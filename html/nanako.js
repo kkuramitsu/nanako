@@ -1556,9 +1556,9 @@ class NanakoParser {
         const indentDepth = this.consumeWhitespace();
         let foundClosingBrace = false;
         const statements = [];
-        
+
         while (this.pos < this.length) {
-            this.consumeWhitespace();
+            this.consumeWhitespace(true);
             if (this.consume("}", "｝")) {
                 foundClosingBrace = true;
                 break;

@@ -1268,7 +1268,7 @@ class NanakoParser(object):
         found_closing_brace = False
         statements = []
         while self.pos < self.length:
-            self.consume_whitespace()
+            self.consume_whitespace(include_newline=True)
             if self.consume("}", "｝"):
                 found_closing_brace = True
                 break
