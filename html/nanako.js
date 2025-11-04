@@ -20,7 +20,7 @@ function errorDetails(text, pos) {
     }
     const end = text.indexOf('\n', start);
     const lineText = end === -1 ? text.slice(start) : text.slice(start, end);
-    return { text, line, col, lineText };
+    return { text, line, col, pos, lineText };
 }
 
 function transformArray(values) {
